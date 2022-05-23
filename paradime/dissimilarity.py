@@ -1,17 +1,385 @@
 from datetime import datetime
 import warnings
-from typing import Union, Callable, Literal
+from typing import Union, Callable, Literal, Tuple, Any
 import torch
 import torch.nn.functional as F
 import numpy as np
 from scipy.sparse import base
 from pynndescent import NNDescent
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, base
 from scipy.spatial.distance import pdist, squareform
+from nptyping import NDArray, Shape, assert_isinstance
 
 from .transforms import DissimilarityTransform, Identity, PerplexityBased
-from .types import Metric, Tensor
+from .types import Metric, Tensor, Diss
 from .utils import report
+
+
+class DissimilarityData():
+
+    def __init__(self,
+        diss: Diss) -> None:
+
+        if _is_square_array(diss):
+            self = SquareDissimilarityArray(diss) # type:ignore
+        elif _is_square_tensor(diss):
+            self = SquareDissimilarityTensor(diss) # type:ignore
+        elif _is_square_sparse(diss):
+            self = SparseDissimilarityArray(diss) # type:ignore
+        elif _is_triangular_array(diss):
+            self = TriangularDissimilarityArray(diss) # type:ignore
+        elif _is_triangular_tensor(diss):
+            self = TriangularDissimilarityTensor(diss) # type:ignore
+        elif _is_array_tuple(diss):
+            self = DissimilarityTuple(diss) # type:ignore
+        else:
+            raise TypeError(
+                f'Input type not supported by {type(self).__name__}.')
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        raise NotImplementedError()
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        raise NotImplementedError()
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        raise NotImplementedError()
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        raise NotImplementedError()
+    
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        raise NotImplementedError()
+
+
+class SquareDissimilarityArray(DissimilarityData):
+
+    def __init__(self,
+        diss: NDArray[Shape['Dim, Dim'], Any]
+        ) -> None:
+
+        if not _is_square_array(diss):
+            raise ValueError('Expected square array.')
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return self
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        return SquareDissimilarityTensor(torch.tensor(self.diss))
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        return TriangularDissimilarityArray(squareform(self.diss))
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        return TriangularDissimilarityTensor(
+            torch.tensor(squareform(self.diss))
+        )
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        return SparseDissimilarityArray(
+            csr_matrix(self.diss)
+        )
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        # get indices of off-diagonal elements
+        ones = np.ones((10, 10), dtype=np.int32)
+        np.fill_diagonal(ones, 0)
+        i, j = np.where(ones)
+        diss = self.diss[np.stack((i, j)).T]
+        return DissimilarityTuple((diss, j))
+
+
+class SquareDissimilarityTensor(DissimilarityData):
+
+    def __init__(self,
+        diss: torch.Tensor
+        ) -> None:
+
+        if not _is_square_tensor(diss):
+            raise ValueError('Expected square tensor.')
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return SquareDissimilarityArray(self.diss.detach().numpy())
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        return self
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        return TriangularDissimilarityArray(
+            squareform(self.diss.numpy())
+        )
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        indices = torch.triu_indices(
+            self.diss.shape[0],
+            self.diss.shape[1],
+            offset=1)
+        return TriangularDissimilarityTensor(
+            self.diss[indices]
+        )
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        return SparseDissimilarityArray(
+            csr_matrix(self.diss.numpy())
+        )
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        # get indices of off-diagonal elements
+        ones = np.ones((10, 10), dtype=np.int32)
+        np.fill_diagonal(ones, 0)
+        i, j = np.where(ones)
+        diss = self.diss.numpy()[np.stack((i, j)).T]
+        return DissimilarityTuple((diss, j))
+
+
+class TriangularDissimilarityArray(DissimilarityData):
+
+    def __init__(self,
+        diss: NDArray[Shape['*'], Any]
+        ) -> None:
+
+        if not _is_triangular_array(diss):
+            raise ValueError(
+                'Expected vector-form dissimilarity array.'
+            )
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return SquareDissimilarityArray(
+            squareform(self.diss)
+        )
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        return SquareDissimilarityTensor(
+            torch.tensor(squareform(self.diss))
+        )
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        return self
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        return TriangularDissimilarityTensor(
+            torch.tensor(self.diss)
+        )
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        return SparseDissimilarityArray(
+            csr_matrix(squareform(self.diss))
+        )
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        return self.to_square_array().to_array_tuple()
+
+
+class TriangularDissimilarityTensor(DissimilarityData):
+
+    def __init__(self,
+        diss: torch.Tensor
+        ) -> None:
+
+        if not _is_triangular_tensor(diss):
+            raise ValueError(
+                'Expected vector-form dissimilarity tensor.'
+            )
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return SquareDissimilarityArray(
+            squareform(self.diss.detach().numpy())
+        )
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        # get dimensions of square matrix
+        d = int(np.ceil(np.sqrt(len(self.diss) * 2)))
+        matrix = torch.zeros((d, d), device=self.diss.device)
+        a, b = torch.triu_indices(d, d, offset=1)
+        matrix[[a, b]] = self.diss
+        matrix = matrix + matrix.T
+        return SquareDissimilarityTensor(
+            matrix
+        )
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        return self.diss.detach().numpy()
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        return self
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        return SparseDissimilarityArray(
+            csr_matrix(squareform(self.to_square_array().to_array_tuple()))
+        )
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        return self.to_square_array().to_array_tuple()
+
+
+class SparseDissimilarityArray(DissimilarityData):
+    def __init__(self,
+        diss: base.spmatrix
+        ) -> None:
+
+        if not _is_square_sparse(diss):
+            raise ValueError(
+                'Expected vector-form dissimilarity tensor.'
+            )
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return SquareDissimilarityArray(
+            self.diss.toarray()
+        )
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        return SquareDissimilarityTensor(
+            torch.tensor(self.diss.toarray())
+        )
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        indices = np.triu_indices(self.diss.shape[0], k=1)
+        return TriangularDissimilarityArray(
+            self.diss[indices].A[0]
+        )
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        indices = np.triu_indices(self.diss.shape[0], k=1)
+        return TriangularDissimilarityTensor(
+            torch.tensor(self.diss[indices].A[0])
+        )
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        return self
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        return self.to_square_array().to_array_tuple()
+
+
+class DissimilarityTuple(DissimilarityData):
+    def __init__(self,
+        diss: Tuple[
+            NDArray[Shape['Dim, Nn'], Any],
+            NDArray[Shape['Dim, Nn'], Any]
+        ]
+        ) -> None:
+
+        if not _is_array_tuple(diss):
+            raise ValueError(
+                'Expected tuple of arrays (neighbors, dissimilarities).'
+            )
+
+        self.diss = diss
+
+    def to_square_array(self) -> 'SquareDissimilarityArray':
+        return self.to_sparse_array().to_square_array()
+
+    def to_square_tensor(self) -> 'SquareDissimilarityTensor':
+        return self.to_sparse_array().to_square_tensor()
+
+    def to_triangular_array(self) -> 'TriangularDissimilarityArray':
+        return self.to_sparse_array().to_triangular_array()
+
+    def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
+        return self.to_sparse_array().to_triangular_tensor()
+
+    def to_sparse_array(self) -> 'SparseDissimilarityArray':
+        neighbors, diss = self.diss
+        row_indices = np.repeat(
+            np.arange(neighbors.shape[0]),
+            neighbors.shape[1]
+            )
+        matrix = csr_matrix((
+            diss.ravel(),
+            (row_indices, neighbors.ravel())
+        ))
+        return SparseDissimilarityArray(matrix)
+
+    def to_array_tuple(self) -> 'DissimilarityTuple':
+        return self
+
+
+def _is_square_array(
+    diss: Diss
+    ) -> bool:
+
+    return assert_isinstance(
+        diss,
+        NDArray[Shape['Dim, Dim'], Any]
+    )
+
+def _is_square_tensor(
+    diss: Diss
+    ) -> bool:
+
+    result = False
+
+    if isinstance(diss, torch.Tensor):
+        if len(diss.shape) == 2 and diss.shape[0] == diss.shape[1]:
+            result = True
+
+    return result
+
+def _is_triangular_array(
+    diss: Diss
+    ) -> bool:
+
+    if assert_isinstance(diss, NDArray[Shape['Dim'], Any]):
+        try:
+            squareform(diss)
+        except:
+            return False
+        else:
+            return True
+    else:
+            return False
+
+def _is_triangular_tensor(
+    diss: Diss
+    ) -> bool:
+
+    if isinstance(diss, torch.Tensor):
+        try:
+            squareform(diss.numpy())
+        except:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+def _is_square_sparse(
+    diss: Diss
+    ) -> bool:
+
+    result = False
+
+    if isinstance(diss,base.sparse):
+        if (len(diss.shape) == 2 and
+            diss.shape[0] == diss.shape[1]):
+            result = False
+    
+    return result
+        
+
+def _is_array_tuple(
+    diss: Diss
+    ) -> bool:
+
+    if assert_isinstance(diss,
+        Tuple[
+            NDArray[Shape['Dim'], Any],
+            NDArray[Shape['Dim'], Any]
+        ]) and len(diss[0]) == len(diss[1]):
+        return True
+    else:
+        return False
+
 
 class Dissimilarity():
     
@@ -22,48 +390,18 @@ class Dissimilarity():
         
         self.metric = metric
         self.transform = transform
-        self.distances: Tensor = None
 
-    def matrix(self,
+    def compute_dissimilarities(self,
         X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
-        **kwargs) -> Tensor:
+        **kwargs) -> DissimilarityData:
 
         raise NotImplementedError
 
-    def transformed_matrix(self,
-        X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
-        **kwargs) -> Tensor:
+    # TODO: implement tranforms
+    def transformed_dissimilarities(self
+        ) -> DissimilarityData:
 
-        if self.transform is None:
-            self.transform = Identity
-
-        return self.transform(self.matrix(
-            X,
-            out_format,
-            **kwargs
-        ))
-
-    def _check_input(self,
-        X: Tensor = None,
-        precomputed = False
-        ) -> None:
-
-        if not precomputed:
-            if X is None:
-                raise Exception(
-                    'Missing input data for non-precomputed dissimilarity.'
-                )
-        elif X is not None:
-            try:
-                squareform(X)
-            except:
-                if not len(X.shape) == 2 and X.shape[0] == X.shape[1]:
-                    raise ValueError(
-                        'Expecting either a square matrix or a vector \
-                         representing an upper triangular matrix.'
-                        )
+        raise NotImplementedError()
 
 
 class Precomputed(Dissimilarity):
@@ -77,30 +415,17 @@ class Precomputed(Dissimilarity):
             transform = transform
         )
 
-        self.distances = X
+        self.dissimilarities = DissimilarityData(X)
 
-    def matrix(self,
+    def compute_dissimilarities(self,
         X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
         **kwargs
-        ) -> Tensor:
+        ) -> DissimilarityData:
 
-        self._check_input(X, precomputed=True)
+        if X is not None:
+            warnings.warn('Ignoring input for precomputed dissimilarity')
         
-        X = self.distances
-
-        if len(X.shape) == 2 and X.shape[0] == X.shape[1]:
-            if out_format == 'square':
-                matrix = self.distances
-            else:
-                matrix = self.distances[np.triu_indices(X.shape[0], k=1)]
-        else:
-            if out_format == 'square':
-                matrix = squareform(self.distances)
-            else:
-                matrix = self.distances
-         
-        return matrix
+        return self.dissimilarities
 
 
 class Exact(Dissimilarity):
@@ -123,29 +448,28 @@ class Exact(Dissimilarity):
         self.keep_result = keep_result
         self.verbose = verbose
 
-    def matrix(self,
+    def compute_dissimilarities(self,
         X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
         **kwargs
-        ) -> Tensor:
+        ) -> DissimilarityData:
 
-        self._check_input(X)
+        if X is None:
+            raise ValueError(
+                'Missing input for non-precomputed dissimilarity.'
+            )
 
         X = _convert_input_to_numpy(X)
 
-        if self.distances is None or not self.keep_result:
+        if hasattr(self, 'dissimilarities') or not self.keep_result:
             if self.verbose:
                 report('Calculating pairwise distances.')
-            self.distances = pdist(X, metric=self.metric)
+            self.dissimilarities = DissimilarityData(
+                pdist(X, metric=self.metric)
+            )
         elif self.verbose:
             report('Using previously calculated distances.')
 
-        if out_format == 'square':
-            matrix = squareform(self.distances)
-        else:
-            matrix = self.distances
-
-        return matrix
+        return self.dissimilarities
 
 
 class NeighborBased(Dissimilarity):
@@ -165,13 +489,15 @@ class NeighborBased(Dissimilarity):
         self.verbose = verbose
         self.metric = metric
     
-    def matrix(self,
+    def compute_dissimilarities(self,
         X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
         **kwargs
-        ) -> Tensor:
+        ) -> DissimilarityData:
 
-        self._check_input(X)
+        if X is None:
+            raise ValueError(
+                'Missing input for non-precomputed dissimilarity.'
+            )
 
         X = _convert_input_to_numpy(X)
 
@@ -205,21 +531,12 @@ class NeighborBased(Dissimilarity):
             metric = self.metric
         )
         neighbors, distances = index.neighbor_graph
-        neighbors = neighbors[:, 1:]
-        self.distances = distances[:, 1:]
 
-        row_indices = np.repeat(np.arange(X.shape[0]), self.n_neighbors-1)
-        matrix = csr_matrix((
-            self.distances.ravel(),
-            (row_indices, neighbors.ravel())
-        ))
+        self.dissimilarities = DissimilarityData(
+            (neighbors, distances)
+        )
 
-        if out_format == 'square':
-            matrix = matrix.toarray()
-        elif out_format == 'triangular':
-            matrix = matrix[np.triu_indices(X.shape[0], k=1)].A1
-
-        return matrix
+        return self.dissimilarities
 
 
 class Differentiable(Dissimilarity):
@@ -239,11 +556,13 @@ class Differentiable(Dissimilarity):
 
     def matrix(self,
         X: Tensor = None,
-        out_format: Literal['square', 'triangular'] = None,
         **kwargs
         ) -> Tensor:
 
-        self._check_input(X)
+        if X is None:
+            raise ValueError(
+                'Missing input for non-precomputed dissimilarity.'
+            )
 
         if not isinstance(X, torch.Tensor) or not X.requires_grad:
             warnings.warn(
@@ -255,18 +574,12 @@ class Differentiable(Dissimilarity):
 
         # TODO: add old optional second differentiable method
         #       to account for non-Minkowski metrics
-        self.distances = F.pdist(X, p=self.metric_p)
+        self.dissimilarities = TriangularDissimilarityTensor(
+            F.pdist(X, p=self.metric_p)
+        )
 
-        if out_format == 'square':
-            dim = X.shape[0]
-            a, b = torch.triu_indices(dim, dim, offset=1)
-            matrix = torch.zeros((dim, dim), device=X.device)
-            matrix[[a, b]] = self.distances
-            matrix = matrix + matrix.T
-        else:
-            matrix = self.distances
+        return self.dissimilarities
 
-        return matrix
 
 
 def _convert_input_to_numpy(
