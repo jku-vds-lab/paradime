@@ -397,11 +397,14 @@ class Dissimilarity():
 
         raise NotImplementedError
 
-    # TODO: implement tranforms
-    def transformed_dissimilarities(self
+    def _transform(self,
+        X: DissimilarityData
         ) -> DissimilarityData:
 
-        raise NotImplementedError()
+        if self.transform is None:
+            return X
+        else:
+            return self.transform(X)
 
 
 class Precomputed(Dissimilarity):
@@ -415,7 +418,7 @@ class Precomputed(Dissimilarity):
             transform = transform
         )
 
-        self.dissimilarities = DissimilarityData(X)
+        self.dissimilarities = self._transform(DissimilarityData(X))
 
     def compute_dissimilarities(self,
         X: Tensor = None,
@@ -463,8 +466,8 @@ class Exact(Dissimilarity):
         if hasattr(self, 'dissimilarities') or not self.keep_result:
             if self.verbose:
                 report('Calculating pairwise distances.')
-            self.dissimilarities = DissimilarityData(
-                pdist(X, metric=self.metric)
+            self.dissimilarities = self._transform(
+                DissimilarityData(pdist(X, metric=self.metric))
             )
         elif self.verbose:
             report('Using previously calculated distances.')
@@ -532,8 +535,10 @@ class NeighborBased(Dissimilarity):
         )
         neighbors, distances = index.neighbor_graph
 
-        self.dissimilarities = DissimilarityData(
-            (neighbors, distances)
+        self.dissimilarities = self._transform(
+            DissimilarityData(
+                (neighbors, distances)
+            )
         )
 
         return self.dissimilarities
@@ -542,7 +547,8 @@ class NeighborBased(Dissimilarity):
 class Differentiable(Dissimilarity):
 
     def __init__(self,
-        p: Union[int, float] = 2,
+        p: float = 2,
+        metric: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
         transform: Union[Callable, DissimilarityTransform] = None,
         verbose: Union[int, bool] = False
         ) -> None:
@@ -551,7 +557,9 @@ class Differentiable(Dissimilarity):
             transform=transform
         )
 
+        self.metric = metric
         self.metric_p = p
+
         self.verbose = verbose
 
     def matrix(self,
@@ -572,11 +580,25 @@ class Differentiable(Dissimilarity):
 
         X = _convert_input_to_torch(X)
 
-        # TODO: add old optional second differentiable method
-        #       to account for non-Minkowski metrics
-        self.dissimilarities = TriangularDissimilarityTensor(
-            F.pdist(X, p=self.metric_p)
-        )
+        # use memory-inefficient pdist to allow for arbitrary metrics
+        # will break for large batches
+        if self.metric is not None:
+            n = X.shape[0]
+            expanded = X.unsqueeze(1)
+            # repeat entries n times
+            tiled = torch.repeat_interleave(expanded, n, dim=1)
+            # apply metric to pairs of items
+            diss = self.metric(tiled, tiled.transpose(0, 1))
+            self.dissimilarities = self._transform(
+                SquareDissimilarityTensor(diss)
+            )
+        # otherwise use built-in torch method
+        else:
+            self.dissimilarities = self._transform(
+                TriangularDissimilarityTensor(
+                    F.pdist(X, p=self.metric_p)
+                )
+            )
 
         return self.dissimilarities
 
