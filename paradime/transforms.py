@@ -1,10 +1,14 @@
 import numpy as np
+import torch
+from psutil import disk_io_counters
 from scipy.optimize import root_scalar
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, spmatrix
 from numba import jit
-from typing import overload, Literal, Tuple, Union
+from typing import TypeVar, overload, Literal, Tuple, Union, Any
+from nptyping import NDArray, Shape, Float
+from .dissimilarity import DissimilarityData, DissimilarityTuple
 from .utils import report
-from .types import Tensor, Distances
+from .types import Tensor, Diss, Symm
 
 
 class DissimilarityTransform():
@@ -12,35 +16,51 @@ class DissimilarityTransform():
     def __init__(self):
         pass
 
-    def __call__(self, X: Tensor) -> Tensor:
+    def __call__(self,
+        X: Union[Diss, DissimilarityData]
+        ) -> DissimilarityData:
         pass
 
 class Identity(DissimilarityTransform):
-    def __call__(self, X: Tensor) -> Tensor:
-        return X
+    def __call__(self,
+        X: Union[Diss, DissimilarityData]
+        ) -> DissimilarityData:
+
+        if isinstance(X, DissimilarityData):
+            return X
+        else:
+            return DissimilarityData(X)
 
 class PerplexityBased(DissimilarityTransform):
     
     def __init__(self,
         perp: float = 30,
-        beta_upper_bound = 1e6,
-        verbose: bool = False
+        beta_upper_bound: float = 1e6,
+        verbose: bool = False,
+        symmetrize: Symm = 'tsne'
         ) -> None:
 
         self.perplexity = perp
         self.beta_upper_bound = beta_upper_bound
+        self.symmetrize = symmetrize
         self.verbose = verbose
 
+    def __call__(self,
+        X: Union[Diss, DissimilarityData]
+        ) -> DissimilarityData:
+
+        return self.transform(X)
+
     def transform(self,
-        distmat: Distances
+        X: Union[Diss, DissimilarityData]
         ) -> Tensor:
 
-        # TODO: check argument and transform accordingly
+        if isinstance(X, DissimilarityData):
+            X = X.to_array_tuple()
+        else:
+            X = DissimilarityData(X).to_array_tuple()
 
-        neighbors, p_ij = convert_dissimilarity_format(
-            distmat,
-            'sparse'
-        )
+        neighbors, p_ij = X.diss
         num_pts = len(neighbors)
         k = neighbors.shape[1]
 
@@ -53,24 +73,24 @@ class PerplexityBased(DissimilarityTransform):
         row_indices = np.repeat(np.arange(num_pts), k-1)
         p = csr_matrix((p_ij.ravel(), (row_indices, neighbors.ravel())))
 
-        # TODO: make symmetrization optional
+        if self.symmetrize is not None:
+            if self.symmetrize == 'tsne':
+                p = symm_tsne(p)
+            elif self.symmetrize == 'umap':
+                p = symm_umap(p)
+            elif callable(self.symmetrize):
+                p = self.symmetrize(p)
 
-        return 0.5*(p + p.transpose())
-
-# TODO: implement (but move to dissimilarity.py ?)
-# def __convert_distances(
-#     distmat)
-
-# TODO: implement proper numpy type hints
+        return p
 
 @jit
 def entropy(
-    dists: np.ndarray,
+    dists: NDArray[Shape['*'], Float],
     beta: float) -> float:
 
-    x = -dists * beta
+    x = dists * beta
     y = np.exp(x)
-    ysum: float = y.sum()
+    ysum = y.sum()
 
     if ysum < 1e-50:
         result = -1.
@@ -80,9 +100,10 @@ def entropy(
     
     return result
 
+
 def p_i(
-    dists: Tensor,
-    beta: float) -> np.ndarray:
+    dists: NDArray[Shape['*'], Float],
+    beta: float) -> NDArray[Shape['*'], Float]:
 
     x = - dists * beta
     y = np.exp(x)
@@ -91,7 +112,7 @@ def p_i(
     return y / ysum
 
 def find_beta(
-    dists: Tensor,
+    dists: NDArray[Shape['*'], Float],
     perp: float,
     upper_bound: float = 1e6
     ) -> float:
@@ -102,25 +123,43 @@ def find_beta(
 
 
 @overload
-def convert_dissimilarity_format(
-    D: Distances,
-    out_format: Literal['square']
-    ) -> np.ndarray: ...
+def symm_tsne(p: NDArray[Shape['Dim, Dim'], Any]
+    ) -> NDArray[Shape['Dim, Dim'], Any]:
+    ...
+@overload
+def symm_tsne(p: torch.Tensor) -> torch.Tensor:
+    ...
+@overload
+def symm_tsne(p: spmatrix) -> spmatrix:
+    ...
+
+def symm_tsne(p: Tensor) -> Tensor:
+    if isinstance(p, np.ndarray):
+        return 0.5 * (p + p.T)
+    elif isinstance(p, spmatrix):
+        return 0.5 * (p + p.transpose())
+    elif isinstance(p, torch.Tensor):
+        return 0.5 * (p + torch.t(p))
+    else:
+        raise TypeError('Expected tensor-type argument.')
 
 @overload
-def convert_dissimilarity_format(
-    D: Distances,
-    out_format: Literal['triangular']
-    ) -> np.ndarray: ...
-
+def symm_umap(p: NDArray[Shape['Dim, Dim'], Any]
+    ) -> NDArray[Shape['Dim, Dim'], Any]:
+    ...
 @overload
-def convert_dissimilarity_format(
-    D: Distances,
-    out_format: Literal['sparse']
-    ) -> Tuple[np.ndarray, np.ndarray]: ...
-
+def symm_umap(p: torch.Tensor) -> torch.Tensor:
+    ...
 @overload
-def convert_dissimilarity_format(
-    D: Distances,
-    out_format: str
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ...
+def symm_umap(p: spmatrix) -> spmatrix:
+    ...
+
+def symm_umap(p: Tensor) -> Tensor:
+    if isinstance(p, np.ndarray):
+        return p + p.T - (p * p.T)
+    elif isinstance(p, spmatrix):
+        return p + p.transpose() - (p.multiply(p.transpose()))
+    elif isinstance(p, torch.Tensor):
+        return p + torch.t(p) - (p * torch.t(p))
+    else:
+        raise TypeError('Expected tensor-type argument.')

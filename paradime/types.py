@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import base
+from scipy.sparse import spmatrix
 import torch
 
 from typing import Collection, Sized, Tuple, Union, Callable, Literal, Any
@@ -8,7 +8,7 @@ from nptyping import NDArray, Shape
 Diss = Union[
     NDArray[Shape['Dim, Dim'], Any],
     torch.Tensor,
-    base.spmatrix,
+    spmatrix,
     Tuple[
         NDArray[Shape['Dim, Nn'], Any],
         NDArray[Shape['Dim, Nn'], Any]
@@ -17,11 +17,20 @@ Diss = Union[
 
 Tensor = Union[
     np.ndarray,
-    base.spmatrix,
+    spmatrix,
     torch.Tensor
 ]
 
 Metric = Union[
     Callable,
     str
+]
+
+Symm = Union[
+    None,
+    Literal['tsne', 'umap'],
+    Callable[
+        [Diss],
+        Diss
+        ]
 ]
