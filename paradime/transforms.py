@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix, spmatrix
 from numba import jit
 from typing import TypeVar, overload, Literal, Tuple, Union, Any
 from nptyping import NDArray, Shape, Float
-from .dissimilarity import DissimilarityData, DissimilarityTuple
+from .dissimilarity import DissimilarityData, SparseDissimilarityArray
 from .utils import report
 from .types import Tensor, Diss, Symm
 
@@ -53,7 +53,7 @@ class PerplexityBased(DissimilarityTransform):
 
     def transform(self,
         X: Union[Diss, DissimilarityData]
-        ) -> Tensor:
+        ) -> DissimilarityData:
 
         if isinstance(X, DissimilarityData):
             X = X.to_array_tuple()
@@ -81,7 +81,7 @@ class PerplexityBased(DissimilarityTransform):
             elif callable(self.symmetrize):
                 p = self.symmetrize(p)
 
-        return p
+        return SparseDissimilarityArray(p)
 
 @jit
 def entropy(
