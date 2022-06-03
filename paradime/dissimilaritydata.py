@@ -89,7 +89,9 @@ class SquareDissimilarityArray(DissimilarityData):
         # ))
         return DissimilarityTuple((
             self.diss.reshape(-1, self.diss.shape[0]),
-            np.tile(np.arange(self.diss.shape[0]))
+            np.tile(
+                np.arange(self.diss.shape[0]),
+                self.diss.shape[0])
         ))
 
 
