@@ -79,12 +79,18 @@ class SquareDissimilarityArray(DissimilarityData):
         )
 
     def to_array_tuple(self) -> 'DissimilarityTuple':
-        # get indices of off-diagonal elements
-        ones = np.ones((10, 10), dtype=np.int32)
-        np.fill_diagonal(ones, 0)
-        i, j = np.where(ones)
-        diss = self.diss[np.stack((i, j)).T]
-        return DissimilarityTuple((diss, j))
+        # # get indices of off-diagonal elements
+        # ones = np.ones(self.diss.shape, dtype=np.int32)
+        # np.fill_diagonal(ones, 0)
+        # i, j = np.where(ones)
+        # return DissimilarityTuple((
+        #     self.diss[i,j].reshape(-1, self.diss.shape[0] - 1),
+        #     j.reshape(-1, self.diss.shape[0] - 1)
+        # ))
+        return DissimilarityTuple((
+            self.diss.reshape(-1, self.diss.shape[0]),
+            np.tile(np.arange(self.diss.shape[0]))
+        ))
 
 
 class SquareDissimilarityTensor(DissimilarityData):
@@ -106,30 +112,33 @@ class SquareDissimilarityTensor(DissimilarityData):
 
     def to_triangular_array(self) -> 'TriangularDissimilarityArray':
         return TriangularDissimilarityArray(
-            squareform(self.diss.numpy())
+            squareform(self.diss.detach().numpy())
         )
 
     def to_triangular_tensor(self) -> 'TriangularDissimilarityTensor':
-        indices = torch.triu_indices(
+        i, j = torch.triu_indices(
             self.diss.shape[0],
             self.diss.shape[1],
             offset=1)
         return TriangularDissimilarityTensor(
-            self.diss[indices]
+            self.diss[i,j]
         )
 
     def to_sparse_array(self) -> 'SparseDissimilarityArray':
         return SparseDissimilarityArray(
-            scipy.sparse.csr_matrix(self.diss.numpy())
+            scipy.sparse.csr_matrix(self.diss.detach().numpy())
         )
 
     def to_array_tuple(self) -> 'DissimilarityTuple':
+        diss = self.diss.detach().numpy()
         # get indices of off-diagonal elements
-        ones = np.ones((10, 10), dtype=np.int32)
+        ones = np.ones(diss.shape, dtype=np.int32)
         np.fill_diagonal(ones, 0)
         i, j = np.where(ones)
-        diss = self.diss.numpy()[np.stack((i, j)).T]
-        return DissimilarityTuple((diss, j))
+        return DissimilarityTuple((
+            diss[i,j].reshape(-1, self.diss.shape[0] - 1),
+            j.reshape(-1, self.diss.shape[0] - 1)
+        ))
 
 
 class TriangularDissimilarityArray(DissimilarityData):
@@ -270,7 +279,13 @@ class DissimilarityTuple(DissimilarityData):
                 'Expected tuple of arrays (neighbors, dissimilarities).'
             )
 
-        self.diss = diss
+        # sort entries by ascending distance
+        neighbors, distances = diss
+        indices = distances.argsort()
+        neighbors = neighbors[indices]
+        distances = distances[indices]
+
+        self.diss = (neighbors, distances)
 
     def to_square_array(self) -> 'SquareDissimilarityArray':
         return self.to_sparse_array().to_square_array()
@@ -376,7 +391,7 @@ def _is_array_tuple(
     result = False
 
     if isinstance(diss, tuple) and len(diss) == 2:
-        if len(diss[0].shape) == 1 and diss[0].shape == diss[1].shape:
+        if len(diss[0].shape) == 2 and diss[0].shape == diss[1].shape:
             result = True
     
     return result

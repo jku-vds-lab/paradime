@@ -138,6 +138,10 @@ class NeighborBased(Dissimilarity):
 
         num_pts = X.shape[0]
 
+
+        # TODO: if multiple transforms are allowed, check if any
+        # of them is PerplexityBased and use the one with the
+        # highest perplexity
         if self.n_neighbors is None:
             if isinstance(self.transform, prdmtf.PerplexityBased):
                 self.n_neighbors = min(
@@ -151,7 +155,7 @@ class NeighborBased(Dissimilarity):
                 if self.n_neighbors < 3 * self.transform.perplexity:
                     warnings.warn(
                         f'Number of neighbors {self.n_neighbors} ' +
-                        'smaller than three times perplexity' +
+                        'smaller than three times perplexity ' +
                         f'{self.transform.perplexity} of transform.'
                     )
         

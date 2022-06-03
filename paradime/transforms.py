@@ -10,7 +10,6 @@ from paradime import dissimilaritydata as prdmdd
 from .utils import report
 from .types import Tensor, Diss, Symm
 
-# TODO: move over to dissimilarity due to circular import
 
 class DissimilarityTransform():
 
@@ -36,13 +35,17 @@ class PerplexityBased(DissimilarityTransform):
     
     def __init__(self,
         perp: float = 30,
-        beta_upper_bound: float = 1e6,
         verbose: bool = False,
-        symmetrize: Symm = 'tsne'
+        symmetrize: Symm = 'tsne',
+        **kwargs # passed on to root_scalar
         ) -> None:
 
         self.perplexity = perp
-        self.beta_upper_bound = beta_upper_bound
+        self.kwargs = kwargs
+        if self.kwargs: # check if emtpy
+            self.kwargs['x0'] = 0.
+            self.kwargs['x1'] = 1.
+
         self.symmetrize = symmetrize
         self.verbose = verbose
 
@@ -69,7 +72,7 @@ class PerplexityBased(DissimilarityTransform):
             report('Calculating probabilities.')
 
         for i in range(num_pts):
-            beta = find_beta(p_ij[i], self.perplexity)
+            beta = find_beta(p_ij[i], self.perplexity, **self.kwargs)
             p_ij[i] = p_i(p_ij[i], beta)
         row_indices = np.repeat(np.arange(num_pts), k-1)
         p = scipy.sparse.csr_matrix((
@@ -118,11 +121,11 @@ def p_i(
 def find_beta(
     dists: NDArray[Shape['*'], Float],
     perp: float,
-    upper_bound: float = 1e6
+    **kwargs
     ) -> float:
     return scipy.optimize.root_scalar(
         lambda b: entropy(dists, b) - np.log2(perp),
-        bracket=(0.,upper_bound)
+        **kwargs
     ).root
 
 
