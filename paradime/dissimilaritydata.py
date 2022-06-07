@@ -8,7 +8,10 @@ from nptyping import NDArray, Shape, assert_isinstance
 from .types import Metric, Tensor, Diss
 from .utils import report
 
-class DissimilarityData():        
+class DissimilarityData():
+
+    def __init__(self):
+        self.diss = None
 
     def to_square_array(self) -> 'SquareDissimilarityArray':
         raise NotImplementedError()

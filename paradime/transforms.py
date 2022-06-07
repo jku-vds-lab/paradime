@@ -129,8 +129,34 @@ def find_beta(
     ).root
 
 
-# TODO: reimplement symmetrizer as transforms
-# allow list of transforms in 'transform' arg
+class Symmetrize(DissimilarityTransform):
+
+    def __init__(self, impl: Literal['tsne', 'umap']):
+
+        self.impl = impl
+
+    def transform(self,
+        X: Union[Diss, prdmdd.DissimilarityData]
+        ) -> prdmdd.DissimilarityData:
+
+        if not isinstance(X, prdmdd.DissimilarityData):
+            X = prdmdd.dissimilarity_factory(X)
+        elif isinstance(X, prdmdd.DissimilarityTuple):
+            X = X.to_sparse_array()
+
+        if self.impl == 'tsne':
+            symmetrizer = symm_tsne
+        elif self.impl == 'umap':
+            symmetrizer = symm_umap
+        else:
+            raise ValueError('Expected specifier to be "umap" or "tsne".')
+
+        X.diss = symmetrizer(X.diss)
+
+        return X
+
+
+
 
 @overload
 def symm_tsne(p: NDArray[Shape['Dim, Dim'], Any]
@@ -152,6 +178,7 @@ def symm_tsne(p: Tensor) -> Tensor:
         return 0.5 * (p + torch.t(p))
     else:
         raise TypeError('Expected tensor-type argument.')
+
 
 @overload
 def symm_umap(p: NDArray[Shape['Dim, Dim'], Any]

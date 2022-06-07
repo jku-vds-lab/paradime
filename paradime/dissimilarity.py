@@ -13,14 +13,37 @@ from paradime import transforms as prdmtf
 from .types import Metric, Tensor, Diss
 from .utils import report
 
+Transform = Union[
+    Union[
+        Callable[
+            [prdmdd.DissimilarityData],
+            prdmdd.DissimilarityData
+        ],
+        prdmtf.DissimilarityTransform
+    ],
+    list[
+        Union[
+            Callable[
+                [prdmdd.DissimilarityData],
+                prdmdd.DissimilarityData
+            ],
+            prdmtf.DissimilarityTransform
+        ]
+    ]
+]
 
 class Dissimilarity():
     
     def __init__(self,
-        transform: Union[Callable, prdmtf.DissimilarityTransform] = None
+        transform: Transform = None
         ) -> None:
         
-        self.transform = transform
+        if transform is None:
+            self.transform = transform
+        elif not isinstance(transform, list):
+            self.transform = [transform]
+        else:
+            self.transform = transform
 
     def compute_dissimilarities(self,
         X: Tensor = None,
@@ -35,7 +58,9 @@ class Dissimilarity():
         if self.transform is None:
             return X
         else:
-            return self.transform(X)
+            for tf in self.transform:
+                X = tf(X)
+            return X
 
 
 class Precomputed(Dissimilarity):
@@ -138,26 +163,29 @@ class NeighborBased(Dissimilarity):
 
         num_pts = X.shape[0]
 
+        # get highest perplexity of any PerplexityBased transforms
+        perp = 0.
+        if self.transform is not None:
+            for tf in self.transform:
+                if isinstance(tf, prdmtf.PerplexityBased):
+                    perp = max(perp, tf.perplexity)
 
-        # TODO: if multiple transforms are allowed, check if any
-        # of them is PerplexityBased and use the one with the
-        # highest perplexity
+        # set number of neighbors according to highest
+        # perplexity found, or to reasonable default
         if self.n_neighbors is None:
-            if isinstance(self.transform, prdmtf.PerplexityBased):
-                self.n_neighbors = min(
-                    num_pts - 1,
-                    int(3 * self.transform.perplexity)
-                )
+            if perp == 0:
+                self.n_neighbors = int(0.05 * num_pts)
             else:
-                self.n_neighbors = int(0.1 * num_pts)
+                self.n_neighbors = int(min(num_pts - 1, 3 * perp))
         else:
-            if isinstance(self.transform, prdmtf.PerplexityBased):
-                if self.n_neighbors < 3 * self.transform.perplexity:
-                    warnings.warn(
-                        f'Number of neighbors {self.n_neighbors} ' +
-                        'smaller than three times perplexity ' +
-                        f'{self.transform.perplexity} of transform.'
-                    )
+            if self.n_neighbors > 3 * perp:
+                self.n_neighbors = min(num_pts - 1, self.n_neighbors)
+            elif self.n_neighbors < 3 * perp:
+                warnings.warn(
+                    f'Number of neighbors {self.n_neighbors} too small.' +
+                    f'Using 3 * perplexity {perp} = {3 * perp} instead.'
+                )
+                self.n_neighbors = int(min(num_pts - 1, 3 * perp))
         
         if self.verbose:
             report('Indexing nearest neighbors.')
@@ -230,9 +258,14 @@ class Differentiable(Dissimilarity):
             )
         # otherwise use built-in torch method
         else:
+            n = X.shape[0]
+            diss_cond = F.pdist(X, p=self.metric_p)
+            diss = torch.zeros((n, n), device = X.device)
+            i, j = torch.triu_indices(n, n, offset=1)
+            diss[[i, j]] = diss_cond
             self.dissimilarities = self._transform(
-                prdmdd.TriangularDissimilarityTensor(
-                    F.pdist(X, p=self.metric_p)
+                prdmdd.SquareDissimilarityTensor(
+                    diss + diss.T
                 )
             )
 
