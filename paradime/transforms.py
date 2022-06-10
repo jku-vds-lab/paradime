@@ -36,17 +36,15 @@ class PerplexityBased(DissimilarityTransform):
     def __init__(self,
         perp: float = 30,
         verbose: bool = False,
-        symmetrize: Symm = 'tsne',
         **kwargs # passed on to root_scalar
         ) -> None:
 
         self.perplexity = perp
         self.kwargs = kwargs
-        if self.kwargs: # check if emtpy
+        if not self.kwargs: # check if emtpy
             self.kwargs['x0'] = 0.
             self.kwargs['x1'] = 1.
 
-        self.symmetrize = symmetrize
         self.verbose = verbose
 
     def __call__(self,
@@ -64,38 +62,44 @@ class PerplexityBased(DissimilarityTransform):
         else:
             X = prdmdd.dissimilarity_factory(X).to_array_tuple()
 
-        neighbors, p_ij = X.diss
-        num_pts = len(neighbors)
-        k = neighbors.shape[1]
+        neighbors = X.diss[0][:, 1:]
+        num_pts, k = neighbors.shape
+        p_ij = np.empty((num_pts, k), dtype=float)
+        self.beta = np.empty(num_pts, dtype=float)
+
+        # TODO: think about what should happen if dissimilarities
+        #       do not include d(x_i, x_i) = 0
 
         if self.verbose:
             report('Calculating probabilities.')
 
         for i in range(num_pts):
-            beta = find_beta(p_ij[i], self.perplexity, **self.kwargs)
-            p_ij[i] = p_i(p_ij[i], beta)
-        row_indices = np.repeat(np.arange(num_pts), k-1)
-        p = scipy.sparse.csr_matrix((
-            p_ij.ravel(),
-            (row_indices, neighbors.ravel())
+            beta = find_beta(
+                X.diss[1][i, 1:],
+                self.perplexity,
+                **self.kwargs
+            )
+            self.beta[i] = beta
+            p_ij[i] = p_i(X.diss[1][i, 1:], beta)
+        
+        return prdmdd.DissimilarityTuple((
+            neighbors,
+            p_ij
         ))
+        # row_indices = np.repeat(np.arange(num_pts), k-1)
+        # p = scipy.sparse.csr_matrix((
+        #     p_ij.ravel(),
+        #     (row_indices, neighbors.ravel())
+        # ))
 
-        if self.symmetrize is not None:
-            if self.symmetrize == 'tsne':
-                p = symm_tsne(p)
-            elif self.symmetrize == 'umap':
-                p = symm_umap(p)
-            elif callable(self.symmetrize):
-                p = self.symmetrize(p)
-
-        return prdmdd.SparseDissimilarityArray(p)
+        # return prdmdd.SparseDissimilarityArray(p)
 
 @jit
 def entropy(
     dists: NDArray[Shape['*'], Float],
     beta: float) -> float:
 
-    x = dists * beta
+    x = dists**2 * beta
     y = np.exp(x)
     ysum = y.sum()
 
@@ -112,7 +116,7 @@ def p_i(
     dists: NDArray[Shape['*'], Float],
     beta: float) -> NDArray[Shape['*'], Float]:
 
-    x = - dists * beta
+    x = - dists**2 * beta
     y = np.exp(x)
     ysum = y.sum()
 

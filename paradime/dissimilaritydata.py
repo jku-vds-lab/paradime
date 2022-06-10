@@ -287,8 +287,8 @@ class DissimilarityTuple(DissimilarityData):
         # sort entries by ascending distance
         neighbors, distances = diss
         indices = distances.argsort()
-        neighbors = neighbors[indices]
-        distances = distances[indices]
+        neighbors = np.take_along_axis(neighbors, indices, axis=1)
+        distances = np.take_along_axis(distances, indices, axis=1)
 
         self.diss = (neighbors, distances)
 
