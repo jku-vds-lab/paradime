@@ -1,6 +1,6 @@
 from datetime import datetime
 import warnings
-from typing import Union, Callable, Literal, Tuple, Any
+from typing import Union, Callable, List, Literal, Tuple, Any
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -8,31 +8,25 @@ from pynndescent import NNDescent
 import scipy.sparse
 from scipy.spatial.distance import pdist, squareform
 
-from paradime import dissimilaritydata as prdmdd
+from paradime import affinitydata as prdmad
 from paradime import transforms as prdmtf
 from .types import Metric, Tensor, Diss
 from .utils import report
 
-Transform = Union[
-    Union[
+SingleTransform = Union[
         Callable[
-            [prdmdd.DissimilarityData],
-            prdmdd.DissimilarityData
+            [prdmad.AffinityData],
+            prdmad.AffinityData
         ],
-        prdmtf.DissimilarityTransform
-    ],
-    list[
-        Union[
-            Callable[
-                [prdmdd.DissimilarityData],
-                prdmdd.DissimilarityData
-            ],
-            prdmtf.DissimilarityTransform
-        ]
+        prdmtf.AffinityTransform
     ]
+
+Transform = Union[    
+    SingleTransform,
+    List[SingleTransform]
 ]
 
-class Dissimilarity():
+class Affinity():
     
     def __init__(self,
         transform: Transform = None
@@ -45,15 +39,15 @@ class Dissimilarity():
         else:
             self.transform = transform
 
-    def compute_dissimilarities(self,
+    def compute_affinities(self,
         X: Tensor = None,
-        **kwargs) -> prdmdd.DissimilarityData:
+        **kwargs) -> prdmad.AffinityData:
 
         raise NotImplementedError
 
     def _transform(self,
-        X: prdmdd.DissimilarityData
-        ) -> prdmdd.DissimilarityData:
+        X: prdmad.AffinityData
+        ) -> prdmad.AffinityData:
 
         if self.transform is None:
             return X
@@ -63,37 +57,37 @@ class Dissimilarity():
             return X
 
 
-class Precomputed(Dissimilarity):
+class Precomputed(Affinity):
 
     def __init__(self,
         X: Tensor,
-        transform: Union[Callable, prdmtf.DissimilarityTransform] = None
+        transform: Union[Callable, prdmtf.AffinityTransform] = None
         ) -> None:
 
         super().__init__(
             transform = transform
         )
 
-        self.dissimilarities = self._transform(
-            prdmdd.dissimilarity_factory(X))
+        self.affinities = self._transform(
+            prdmad.affinity_factory(X))
 
-    def compute_dissimilarities(self,
+    def compute_affinities(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmdd.DissimilarityData:
+        ) -> prdmad.AffinityData:
 
         if X is not None:
-            warnings.warn('Ignoring input for precomputed dissimilarity')
+            warnings.warn('Ignoring input for precomputed affinity.')
         
-        return self.dissimilarities
+        return self.affinities
 
 
-class Exact(Dissimilarity):
+class Exact(Affinity):
  
     def __init__(self,
         metric: Metric = None,
         keep_result = True,
-        transform: Union[Callable, prdmtf.DissimilarityTransform] = None,
+        transform: Union[Callable, prdmtf.AffinityTransform] = None,
         verbose: Union[int, bool] = False
         ) -> None:
 
@@ -108,36 +102,36 @@ class Exact(Dissimilarity):
         self.keep_result = keep_result
         self.verbose = verbose
 
-    def compute_dissimilarities(self,
+    def compute_affinities(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmdd.DissimilarityData:
+        ) -> prdmad.AffinityData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed dissimilarity.'
+                'Missing input for non-precomputed affinity.'
             )
 
         X = _convert_input_to_numpy(X)
 
-        if not hasattr(self, 'dissimilarities') or not self.keep_result:
+        if not hasattr(self, 'affinities') or not self.keep_result:
             if self.verbose:
                 report('Calculating pairwise distances.')
-            self.dissimilarities = self._transform(
-                prdmdd.dissimilarity_factory(pdist(X, metric=self.metric))
+            self.affinities = self._transform(
+                prdmad.affinity_factory(pdist(X, metric=self.metric))
             )
         elif self.verbose:
             report('Using previously calculated distances.')
 
-        return self.dissimilarities
+        return self.affinities
 
 
-class NeighborBased(Dissimilarity):
+class NeighborBased(Affinity):
 
     def __init__(self,
         n_neighbors: int = None,
         metric: Metric = None,
-        transform: Union[Callable, prdmtf.DissimilarityTransform] = None,
+        transform: Union[Callable, prdmtf.AffinityTransform] = None,
         verbose: Union[bool, int] = False
         ) -> None:
 
@@ -149,14 +143,14 @@ class NeighborBased(Dissimilarity):
         self.verbose = verbose
         self.metric = metric
     
-    def compute_dissimilarities(self,
+    def compute_affinities(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmdd.DissimilarityData:
+        ) -> prdmad.AffinityData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed dissimilarity.'
+                'Missing input for non-precomputed affinity.'
             )
 
         X = _convert_input_to_numpy(X)
@@ -199,21 +193,21 @@ class NeighborBased(Dissimilarity):
         )
         neighbors, distances = index.neighbor_graph
 
-        self.dissimilarities = self._transform(
-            prdmdd.dissimilarity_factory(
+        self.affinities = self._transform(
+            prdmad.affinity_factory(
                 (neighbors, distances)
             )
         )
 
-        return self.dissimilarities
+        return self.affinities
 
 
-class Differentiable(Dissimilarity):
+class Differentiable(Affinity):
 
     def __init__(self,
         p: float = 2,
         metric: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
-        transform: Union[Callable, prdmtf.DissimilarityTransform] = None,
+        transform: Union[Callable, prdmtf.AffinityTransform] = None,
         verbose: Union[int, bool] = False
         ) -> None:
 
@@ -226,19 +220,19 @@ class Differentiable(Dissimilarity):
 
         self.verbose = verbose
 
-    def compute_dissimilarities(self,
+    def compute_affinities(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmdd.DissimilarityData:
+        ) -> prdmad.AffinityData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed dissimilarity.'
+                'Missing input for non-precomputed affinity.'
             )
 
         if not isinstance(X, torch.Tensor) or not X.requires_grad:
             warnings.warn(
-                'Differentiable dissimilarity operating on tensor ' +
+                'Differentiable affinity operating on tensor ' +
                 'for which no gradients are computed.'
             )
 
@@ -253,8 +247,8 @@ class Differentiable(Dissimilarity):
             tiled = torch.repeat_interleave(expanded, n, dim=1)
             # apply metric to pairs of items
             diss = self.metric(tiled, tiled.transpose(0, 1))
-            self.dissimilarities = self._transform(
-                prdmdd.SquareDissimilarityTensor(diss)
+            self.affinities = self._transform(
+                prdmad.SquareAffinityTensor(diss)
             )
         # otherwise use built-in torch method
         else:
@@ -263,13 +257,13 @@ class Differentiable(Dissimilarity):
             diss = torch.zeros((n, n), device = X.device)
             i, j = torch.triu_indices(n, n, offset=1)
             diss[[i, j]] = diss_cond
-            self.dissimilarities = self._transform(
-                prdmdd.SquareDissimilarityTensor(
+            self.affinities = self._transform(
+                prdmad.SquareAffinityTensor(
                     diss + diss.T
                 )
             )
 
-        return self.dissimilarities
+        return self.affinities
 
 
 

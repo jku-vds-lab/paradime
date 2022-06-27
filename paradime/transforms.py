@@ -4,34 +4,33 @@ import scipy.optimize
 import scipy.sparse
 from numba import jit
 from typing import TypeVar, overload, Literal, Tuple, Union, Any
-from nptyping import NDArray, Shape, Float
 
-from paradime import dissimilaritydata as prdmdd
+from paradime import affinitydata as prdmad
 from .utils import report
 from .types import Tensor, Diss, Symm
 
 
-class DissimilarityTransform():
+class AffinityTransform():
 
     def __init__(self):
         pass
 
     def __call__(self,
-        X: Union[Diss, prdmdd.DissimilarityData]
-        ) -> prdmdd.DissimilarityData:
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
         pass
 
-class Identity(DissimilarityTransform):
+class Identity(AffinityTransform):
     def __call__(self,
-        X: Union[Diss, prdmdd.DissimilarityData]
-        ) -> prdmdd.DissimilarityData:
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
 
-        if isinstance(X, prdmdd.DissimilarityData):
+        if isinstance(X, prdmad.AffinityData):
             return X
         else:
-            return prdmdd.dissimilarity_factory(X)
+            return prdmad.affinity_factory(X)
 
-class PerplexityBased(DissimilarityTransform):
+class PerplexityBased(AffinityTransform):
     
     def __init__(self,
         perp: float = 30,
@@ -48,26 +47,26 @@ class PerplexityBased(DissimilarityTransform):
         self.verbose = verbose
 
     def __call__(self,
-        X: Union[Diss, prdmdd.DissimilarityData]
-        ) -> prdmdd.DissimilarityData:
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Diss, prdmdd.DissimilarityData]
-        ) -> prdmdd.DissimilarityData:
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
 
-        if isinstance(X, prdmdd.DissimilarityData):
+        if isinstance(X, prdmad.AffinityData):
             X = X.to_array_tuple()
         else:
-            X = prdmdd.dissimilarity_factory(X).to_array_tuple()
+            X = prdmad.affinity_factory(X).to_array_tuple()
 
         neighbors = X.diss[0][:, 1:]
         num_pts, k = neighbors.shape
         p_ij = np.empty((num_pts, k), dtype=float)
         self.beta = np.empty(num_pts, dtype=float)
 
-        # TODO: think about what should happen if dissimilarities
+        # TODO: think about what should happen if affinities
         #       do not include d(x_i, x_i) = 0
 
         if self.verbose:
@@ -82,7 +81,7 @@ class PerplexityBased(DissimilarityTransform):
             self.beta[i] = beta
             p_ij[i] = p_i(X.diss[1][i, 1:], beta)
         
-        return prdmdd.DissimilarityTuple((
+        return prdmad.AffinityTuple((
             neighbors,
             p_ij
         ))
@@ -92,11 +91,11 @@ class PerplexityBased(DissimilarityTransform):
         #     (row_indices, neighbors.ravel())
         # ))
 
-        # return prdmdd.SparseDissimilarityArray(p)
+        # return prdmad.SparseAffinityArray(p)
 
 @jit
 def entropy(
-    dists: NDArray[Shape['*'], Float],
+    dists: np.ndarray,
     beta: float) -> float:
 
     x = dists**2 * beta
@@ -113,8 +112,8 @@ def entropy(
 
 
 def p_i(
-    dists: NDArray[Shape['*'], Float],
-    beta: float) -> NDArray[Shape['*'], Float]:
+    dists: np.ndarray,
+    beta: float) -> np.ndarray:
 
     x = - dists**2 * beta
     y = np.exp(x)
@@ -123,7 +122,7 @@ def p_i(
     return y / ysum
 
 def find_beta(
-    dists: NDArray[Shape['*'], Float],
+    dists: np.ndarray,
     perp: float,
     **kwargs
     ) -> float:
@@ -133,19 +132,19 @@ def find_beta(
     ).root
 
 
-class Symmetrize(DissimilarityTransform):
+class Symmetrize(AffinityTransform):
 
     def __init__(self, impl: Literal['tsne', 'umap']):
 
         self.impl = impl
 
     def transform(self,
-        X: Union[Diss, prdmdd.DissimilarityData]
-        ) -> prdmdd.DissimilarityData:
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
 
-        if not isinstance(X, prdmdd.DissimilarityData):
-            X = prdmdd.dissimilarity_factory(X)
-        elif isinstance(X, prdmdd.DissimilarityTuple):
+        if not isinstance(X, prdmad.AffinityData):
+            X = prdmad.affinity_factory(X)
+        elif isinstance(X, prdmad.AffinityTuple):
             X = X.to_sparse_array()
 
         if self.impl == 'tsne':
@@ -163,8 +162,7 @@ class Symmetrize(DissimilarityTransform):
 
 
 @overload
-def symm_tsne(p: NDArray[Shape['Dim, Dim'], Any]
-    ) -> NDArray[Shape['Dim, Dim'], Any]:
+def symm_tsne(p: np.ndarray) -> np.ndarray:
     ...
 @overload
 def symm_tsne(p: torch.Tensor) -> torch.Tensor:
@@ -185,8 +183,7 @@ def symm_tsne(p: Tensor) -> Tensor:
 
 
 @overload
-def symm_umap(p: NDArray[Shape['Dim, Dim'], Any]
-    ) -> NDArray[Shape['Dim, Dim'], Any]:
+def symm_umap(p: np.ndarray) -> np.ndarray:
     ...
 @overload
 def symm_umap(p: torch.Tensor) -> torch.Tensor:

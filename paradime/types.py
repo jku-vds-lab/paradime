@@ -3,15 +3,14 @@ from scipy.sparse import spmatrix
 import torch
 
 from typing import Collection, Sized, Tuple, Union, Callable, Literal, Any
-from nptyping import NDArray, Shape
 
 Diss = Union[
-    NDArray[Shape['Dim, Dim'], Any],
+    np.ndarray,
     torch.Tensor,
     spmatrix,
     Tuple[
-        NDArray[Shape['Dim, Nn'], Any],
-        NDArray[Shape['Dim, Nn'], Any]
+        np.ndarray,
+        np.ndarray
         ]
 ]
 
