@@ -41,8 +41,9 @@ class PerplexityBased(AffinityTransform):
         self.perplexity = perp
         self.kwargs = kwargs
         if not self.kwargs: # check if emtpy
-            self.kwargs['x0'] = 0.1
-            self.kwargs['x1'] = 1.0
+            # self.kwargs['x0'] = 0.1
+            # self.kwargs['x1'] = 1.0
+            self.kwargs['bracket'] = [0.01, 1.]
 
         self.verbose = verbose
 
@@ -98,7 +99,7 @@ def entropy(
     dists: np.ndarray,
     beta: float) -> float:
 
-    x = dists**2 * beta
+    x = - dists**2 * beta
     y = np.exp(x)
     ysum = y.sum()
 
@@ -165,8 +166,6 @@ class Symmetrize(AffinityTransform):
         return X
 
 
-
-
 @overload
 def symm_tsne(p: np.ndarray) -> np.ndarray:
     ...
@@ -207,3 +206,75 @@ def symm_umap(p: Tensor) -> Tensor:
         return p + torch.t(p) - (p * torch.t(p))
     else:
         raise TypeError('Expected tensor-type argument.')
+
+
+class NormalizeRows(AffinityTransform):
+    
+    def __call__(self,
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
+
+        return self.transform(X)
+
+    def transform(self,
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
+
+        if not isinstance(X, prdmad.AffinityData):
+            X = prdmad.affinity_factory(X)
+        elif isinstance(X, prdmad.AffinityTuple):
+            X = X.to_sparse_array()
+
+        X.diss = norm_rows(X.diss)
+
+        return X
+
+
+@overload
+def norm_rows(p: np.ndarray) -> np.ndarray:
+    ...
+@overload
+def norm_rows(p: torch.Tensor) -> torch.Tensor:
+    ...
+@overload
+def norm_rows(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
+    ...
+
+def norm_rows(p: Tensor) -> Tensor:
+    if isinstance(p, np.ndarray):
+        return p / p.sum(axis=1, keepdims=True)
+    elif isinstance(p, scipy.sparse.spmatrix):
+        norm_factors = 1/np.repeat(
+            np.array(p.sum(axis=1)),
+            p.getnnz(axis=1)
+        )
+        return scipy.sparse.csr_matrix((
+            norm_factors,
+            p.nonzero()
+        )).multiply(p)
+    elif isinstance(p, torch.Tensor):
+        return p / p.sum(dim=1, keepdim=True)
+    else:
+        raise TypeError('Expected tensor-type argument.')
+
+
+class Normalize(AffinityTransform):
+    
+    def __call__(self,
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
+
+        return self.transform(X)
+
+    def transform(self,
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
+
+        if not isinstance(X, prdmad.AffinityData):
+            X = prdmad.affinity_factory(X)
+        elif isinstance(X, prdmad.AffinityTuple):
+            X = X.to_sparse_array()
+
+        X.diss = X.diss / X.diss.sum()
+
+        return X
