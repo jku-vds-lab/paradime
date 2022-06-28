@@ -41,8 +41,8 @@ class PerplexityBased(AffinityTransform):
         self.perplexity = perp
         self.kwargs = kwargs
         if not self.kwargs: # check if emtpy
-            self.kwargs['x0'] = 0.
-            self.kwargs['x1'] = 1.
+            self.kwargs['x0'] = 0.1
+            self.kwargs['x1'] = 1.0
 
         self.verbose = verbose
 
@@ -137,6 +137,12 @@ class Symmetrize(AffinityTransform):
     def __init__(self, impl: Literal['tsne', 'umap']):
 
         self.impl = impl
+
+    def __call__(self,
+        X: Union[Diss, prdmad.AffinityData]
+        ) -> prdmad.AffinityData:
+
+        return self.transform(X)
 
     def transform(self,
         X: Union[Diss, prdmad.AffinityData]

@@ -188,7 +188,7 @@ class NeighborBased(Affinity):
             self.metric = 'euclidean'
         
         index = NNDescent(X,
-            n_neighbors=self.n_neighbors,
+            n_neighbors=self.n_neighbors + 1,
             metric = self.metric
         )
         neighbors, distances = index.neighbor_graph
