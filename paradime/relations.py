@@ -8,17 +8,17 @@ from pynndescent import NNDescent
 import scipy.sparse
 from scipy.spatial.distance import pdist, squareform
 
-from paradime import affinitydata as prdmad
-from paradime import transforms as prdmtf
-from .types import Metric, Tensor, Diss
+from paradime import relationdata as pdrel
+from paradime import transforms as pdtf
+from .types import Metric, Tensor, Rels
 from .utils import report
 
 SingleTransform = Union[
         Callable[
-            [prdmad.AffinityData],
-            prdmad.AffinityData
+            [pdrel.RelationData],
+            pdrel.RelationData
         ],
-        prdmtf.AffinityTransform
+        pdtf.RelationTransform
     ]
 
 Transform = Union[    
@@ -26,7 +26,7 @@ Transform = Union[
     List[SingleTransform]
 ]
 
-class Affinity():
+class Relations():
     
     def __init__(self,
         transform: Transform = None
@@ -39,15 +39,15 @@ class Affinity():
         else:
             self.transform = transform
 
-    def compute_affinities(self,
+    def compute_relations(self,
         X: Tensor = None,
-        **kwargs) -> prdmad.AffinityData:
+        **kwargs) -> pdrel.RelationData:
 
         raise NotImplementedError
 
     def _transform(self,
-        X: prdmad.AffinityData
-        ) -> prdmad.AffinityData:
+        X: pdrel.RelationData
+        ) -> pdrel.RelationData:
 
         if self.transform is None:
             return X
@@ -57,37 +57,37 @@ class Affinity():
             return X
 
 
-class Precomputed(Affinity):
+class Precomputed(Relations):
 
     def __init__(self,
         X: Tensor,
-        transform: Union[Callable, prdmtf.AffinityTransform] = None
+        transform: Union[Callable, pdtf.RelationTransform] = None
         ) -> None:
 
         super().__init__(
             transform = transform
         )
 
-        self.affinities = self._transform(
-            prdmad.affinity_factory(X))
+        self.relations = self._transform(
+            pdrel.relation_factory(X))
 
-    def compute_affinities(self,
+    def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmad.AffinityData:
+        ) -> pdrel.RelationData:
 
         if X is not None:
-            warnings.warn('Ignoring input for precomputed affinity.')
+            warnings.warn('Ignoring input for precomputed relations.')
         
-        return self.affinities
+        return self.relations
 
 
-class Exact(Affinity):
+class PDist(Relations):
  
     def __init__(self,
         metric: Metric = None,
         keep_result = True,
-        transform: Union[Callable, prdmtf.AffinityTransform] = None,
+        transform: Union[Callable, pdtf.RelationTransform] = None,
         verbose: Union[int, bool] = False
         ) -> None:
 
@@ -102,36 +102,36 @@ class Exact(Affinity):
         self.keep_result = keep_result
         self.verbose = verbose
 
-    def compute_affinities(self,
+    def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmad.AffinityData:
+        ) -> pdrel.RelationData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed affinity.'
+                'Missing input for non-precomputed relations.'
             )
 
         X = _convert_input_to_numpy(X)
 
-        if not hasattr(self, 'affinities') or not self.keep_result:
+        if not hasattr(self, 'relations') or not self.keep_result:
             if self.verbose:
                 report('Calculating pairwise distances.')
-            self.affinities = self._transform(
-                prdmad.affinity_factory(pdist(X, metric=self.metric))
+            self.relations = self._transform(
+                pdrel.relation_factory(pdist(X, metric=self.metric))
             )
         elif self.verbose:
             report('Using previously calculated distances.')
 
-        return self.affinities
+        return self.relations
 
 
-class NeighborBased(Affinity):
+class NeighborBasedPDist(Relations):
 
     def __init__(self,
         n_neighbors: int = None,
         metric: Metric = None,
-        transform: Union[Callable, prdmtf.AffinityTransform] = None,
+        transform: Union[Callable, pdtf.RelationTransform] = None,
         verbose: Union[bool, int] = False
         ) -> None:
 
@@ -143,14 +143,14 @@ class NeighborBased(Affinity):
         self.verbose = verbose
         self.metric = metric
     
-    def compute_affinities(self,
+    def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmad.AffinityData:
+        ) -> pdrel.RelationData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed affinity.'
+                'Missing input for non-precomputed relations.'
             )
 
         X = _convert_input_to_numpy(X)
@@ -161,7 +161,7 @@ class NeighborBased(Affinity):
         perp = 0.
         if self.transform is not None:
             for tf in self.transform:
-                if isinstance(tf, prdmtf.PerplexityBased):
+                if isinstance(tf, pdtf.PerplexityBased):
                     perp = max(perp, tf.perplexity)
 
         # set number of neighbors according to highest
@@ -193,21 +193,21 @@ class NeighborBased(Affinity):
         )
         neighbors, distances = index.neighbor_graph
 
-        self.affinities = self._transform(
-            prdmad.affinity_factory(
+        self.relations = self._transform(
+            pdrel.relation_factory(
                 (neighbors, distances)
             )
         )
 
-        return self.affinities
+        return self.relations
 
 
-class Differentiable(Affinity):
+class DifferentiablePDist(Relations):
 
     def __init__(self,
         p: float = 2,
         metric: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
-        transform: Union[Callable, prdmtf.AffinityTransform] = None,
+        transform: Union[Callable, pdtf.RelationTransform] = None,
         verbose: Union[int, bool] = False
         ) -> None:
 
@@ -220,19 +220,19 @@ class Differentiable(Affinity):
 
         self.verbose = verbose
 
-    def compute_affinities(self,
+    def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> prdmad.AffinityData:
+        ) -> pdrel.RelationData:
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed affinity.'
+                'Missing input for non-precomputed relations.'
             )
 
         if not isinstance(X, torch.Tensor) or not X.requires_grad:
             warnings.warn(
-                'Differentiable affinity operating on tensor ' +
+                'Differentiable pdist operating on tensor ' +
                 'for which no gradients are computed.'
             )
 
@@ -247,8 +247,8 @@ class Differentiable(Affinity):
             tiled = torch.repeat_interleave(expanded, n, dim=1)
             # apply metric to pairs of items
             diss = self.metric(tiled, tiled.transpose(0, 1))
-            self.affinities = self._transform(
-                prdmad.SquareAffinityTensor(diss)
+            self.relations = self._transform(
+                pdrel.SquareRelationTensor(diss)
             )
         # otherwise use built-in torch method
         else:
@@ -257,13 +257,13 @@ class Differentiable(Affinity):
             diss = torch.zeros((n, n), device = X.device)
             i, j = torch.triu_indices(n, n, offset=1)
             diss[[i, j]] = diss_cond
-            self.affinities = self._transform(
-                prdmad.SquareAffinityTensor(
+            self.relations = self._transform(
+                pdrel.SquareRelationTensor(
                     diss + diss.T
                 )
             )
 
-        return self.affinities
+        return self.relations
 
 
 

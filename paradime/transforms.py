@@ -5,32 +5,32 @@ import scipy.sparse
 from numba import jit
 from typing import TypeVar, overload, Literal, Tuple, Union, Any
 
-from paradime import affinitydata as prdmad
+from paradime import relationdata as pdrel
 from .utils import report
-from .types import Tensor, Diss, Symm
+from .types import Tensor, Rels
 
 
-class AffinityTransform():
+class RelationTransform():
 
     def __init__(self):
         pass
 
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
         pass
 
-class Identity(AffinityTransform):
+class Identity(RelationTransform):
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
-        if isinstance(X, prdmad.AffinityData):
+        if isinstance(X, pdrel.RelationData):
             return X
         else:
-            return prdmad.affinity_factory(X)
+            return pdrel.relation_factory(X)
 
-class PerplexityBased(AffinityTransform):
+class PerplexityBased(RelationTransform):
     
     def __init__(self,
         perp: float = 30,
@@ -48,41 +48,41 @@ class PerplexityBased(AffinityTransform):
         self.verbose = verbose
 
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
-        if isinstance(X, prdmad.AffinityData):
+        if isinstance(X, pdrel.RelationData):
             X = X.to_array_tuple()
         else:
-            X = prdmad.affinity_factory(X).to_array_tuple()
+            X = pdrel.relation_factory(X).to_array_tuple()
 
-        neighbors = X.diss[0][:, 1:]
+        neighbors = X.data[0][:, 1:]
         num_pts, k = neighbors.shape
         p_ij = np.empty((num_pts, k), dtype=float)
         self.beta = np.empty(num_pts, dtype=float)
 
-        # TODO: think about what should happen if affinities
-        #       do not include d(x_i, x_i) = 0
+        # TODO: think about what should happen if relations
+        #       do not include r(x_i, x_i) = 0
 
         if self.verbose:
             report('Calculating probabilities.')
 
         for i in range(num_pts):
             beta = find_beta(
-                X.diss[1][i, 1:],
+                X.data[1][i, 1:],
                 self.perplexity,
                 **self.kwargs
             )
             self.beta[i] = beta
-            p_ij[i] = p_i(X.diss[1][i, 1:], beta)
+            p_ij[i] = p_i(X.data[1][i, 1:], beta)
         
-        return prdmad.AffinityTuple((
+        return pdrel.NeighborRelationTuple((
             neighbors,
             p_ij
         ))
@@ -133,25 +133,25 @@ def find_beta(
     ).root
 
 
-class Symmetrize(AffinityTransform):
+class Symmetrize(RelationTransform):
 
     def __init__(self, impl: Literal['tsne', 'umap']):
 
         self.impl = impl
 
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
-        if not isinstance(X, prdmad.AffinityData):
-            X = prdmad.affinity_factory(X)
-        elif isinstance(X, prdmad.AffinityTuple):
+        if not isinstance(X, pdrel.RelationData):
+            X = pdrel.relation_factory(X)
+        elif isinstance(X, pdrel.NeighborRelationTuple):
             X = X.to_sparse_array()
 
         if self.impl == 'tsne':
@@ -161,7 +161,7 @@ class Symmetrize(AffinityTransform):
         else:
             raise ValueError('Expected specifier to be "umap" or "tsne".')
 
-        X.diss = symmetrizer(X.diss)
+        X.data = symmetrizer(X.data)
 
         return X
 
@@ -208,24 +208,24 @@ def symm_umap(p: Tensor) -> Tensor:
         raise TypeError('Expected tensor-type argument.')
 
 
-class NormalizeRows(AffinityTransform):
+class NormalizeRows(RelationTransform):
     
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
-        if not isinstance(X, prdmad.AffinityData):
-            X = prdmad.affinity_factory(X)
-        elif isinstance(X, prdmad.AffinityTuple):
+        if not isinstance(X, pdrel.RelationData):
+            X = pdrel.relation_factory(X)
+        elif isinstance(X, pdrel.NeighborRelationTuple):
             X = X.to_sparse_array()
 
-        X.diss = norm_rows(X.diss)
+        X.data = norm_rows(X.data)
 
         return X
 
@@ -258,23 +258,23 @@ def norm_rows(p: Tensor) -> Tensor:
         raise TypeError('Expected tensor-type argument.')
 
 
-class Normalize(AffinityTransform):
+class Normalize(RelationTransform):
     
     def __call__(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Diss, prdmad.AffinityData]
-        ) -> prdmad.AffinityData:
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
 
-        if not isinstance(X, prdmad.AffinityData):
-            X = prdmad.affinity_factory(X)
-        elif isinstance(X, prdmad.AffinityTuple):
+        if not isinstance(X, pdrel.RelationData):
+            X = pdrel.relation_factory(X)
+        elif isinstance(X, pdrel.NeighborRelationTuple):
             X = X.to_sparse_array()
 
-        X.diss = X.diss / X.diss.sum()
+        X.data = X.data / X.data.sum()
 
         return X

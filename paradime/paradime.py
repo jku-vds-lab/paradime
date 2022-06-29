@@ -16,7 +16,7 @@ from scipy.sparse import csr_matrix
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
 
-from .affinity import Affinity
+from .relations import Relations
 from .types import Tensor
 
 class Dataset(td.Dataset ):
@@ -45,8 +45,8 @@ class ParametricDR():
         encoder: Encoder,
         decoder: Decoder,
         loss_function: Union[Callable, Loss],
-        high_dim_distance: Affinity,
-        low_dim_distance: Affinity
+        hd_relations: Relations,
+        ld_relations: Relations
         ) -> None:
 
         self.dataset = dataset

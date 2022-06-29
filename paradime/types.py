@@ -4,7 +4,7 @@ import torch
 
 from typing import Collection, Sized, Tuple, Union, Callable, Literal, Any
 
-Diss = Union[
+Rels = Union[
     np.ndarray,
     torch.Tensor,
     spmatrix,
@@ -23,13 +23,4 @@ Tensor = Union[
 Metric = Union[
     Callable,
     str
-]
-
-Symm = Union[
-    None,
-    Literal['tsne', 'umap'],
-    Callable[
-        [Diss],
-        Diss
-        ]
 ]
