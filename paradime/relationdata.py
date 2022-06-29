@@ -27,6 +27,9 @@ class RelationData():
     def to_array_tuple(self) -> 'NeighborRelationTuple':
         raise NotImplementedError()
 
+    def to_sparse_array(self) -> 'SparseRelationArray':
+        raise NotImplementedError()
+
 
 def relation_factory(
     rels: Rels) -> RelationData:
@@ -90,10 +93,11 @@ class SquareRelationArray(RelationData):
         #     j.reshape(-1, self.data.shape[0] - 1)
         # ))
         return NeighborRelationTuple((
-            self.data.reshape(-1, self.data.shape[0]),
             np.tile(
                 np.arange(self.data.shape[0]),
-                self.data.shape[0])
+                (self.data.shape[0], 1)
+            ),
+            self.data
         ))
 
 
@@ -135,13 +139,12 @@ class SquareRelationTensor(RelationData):
 
     def to_array_tuple(self) -> 'NeighborRelationTuple':
         rels = self.data.detach().numpy()
-        # get indices of off-diagonal elements
-        ones = np.ones(rels.shape, dtype=np.int32)
-        np.fill_diagonal(ones, 0)
-        i, j = np.where(ones)
         return NeighborRelationTuple((
-            rels[i,j].reshape(-1, self.data.shape[0] - 1),
-            j.reshape(-1, self.data.shape[0] - 1)
+            np.tile(
+                np.arange(rels.shape[0]),
+                (rels.shape[0], 1)
+            ),
+            rels
         ))
 
 
@@ -206,7 +209,10 @@ class TriangularRelationTensor(RelationData):
     def to_square_tensor(self) -> 'SquareRelationTensor':
         # get dimensions of square matrix
         d = int(np.ceil(np.sqrt(len(self.data) * 2)))
-        matrix = torch.zeros((d, d), device=self.data.device)
+        matrix = torch.zeros((d, d),
+            dtype=self.data.dtype,
+            device=self.data.device
+        )
         a, b = torch.triu_indices(d, d, offset=1)
         matrix[[a, b]] = self.data
         matrix = matrix + matrix.T
@@ -215,15 +221,15 @@ class TriangularRelationTensor(RelationData):
         )
 
     def to_triangular_array(self) -> 'TriangularRelationArray':
-        return self.data.detach().numpy()
+        return TriangularRelationArray(
+            self.data.detach().numpy()
+        )
 
     def to_triangular_tensor(self) -> 'TriangularRelationTensor':
         return self
 
     def to_sparse_array(self) -> 'SparseRelationArray':
-        return SparseRelationArray(
-            scipy.sparse.csr_matrix(squareform(self.to_square_array().to_array_tuple()))
-        )
+        return self.to_triangular_array().to_sparse_array()
 
     def to_array_tuple(self) -> 'NeighborRelationTuple':
         return self.to_square_array().to_array_tuple()
