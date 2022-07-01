@@ -8,61 +8,113 @@ from .types import Rels
 from .utils import report
 
 class RelationData():
+    """Base class for storing relations between data points."""
 
     def __init__(self):
         self.data = None
 
     def to_square_array(self) -> 'SquareRelationArray':
+        """Converts the relations to a :class:`SquareRelationArray`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
+        """Converts the relations to a :class:`SquareRelationTensor`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
 
     def to_triangular_array(self) -> 'TriangularRelationArray':
+        """Converts the relations to a :class:`TriangularRelationArray`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
 
     def to_triangular_tensor(self) -> 'TriangularRelationTensor':
+        """Converts the relations to a :class:`TriangularRelationTensor`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
     
     def to_array_tuple(self) -> 'NeighborRelationTuple':
+        """Converts the relations to a :class:`NeighborRelationTuple`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
 
     def to_sparse_array(self) -> 'SparseRelationArray':
+        """Converts the relations to a :class:`SparseRelationArray`.
+        
+        Returns:
+            The converted relations.
+        """
         raise NotImplementedError()
 
 
 def relation_factory(
-    rels: Rels) -> RelationData:
+    relations: Rels) -> RelationData:
+    """Create a :class:`RelationData` object from a variety of input formats.
+    
+    Args:
+        relations: The relations, specified either as a square array or
+        tensor, a vector-form (triangular) array or tensor, a sparse
+        array, or a tuple (n, r), where n is an array of neighor indices
+        for each data point and r is an array of relation values of the
+        same shape.
+    
+    Returns:
+        A :class:`RelationData` object with a subclass depending on the
+        input format.
+    """
 
-    if _is_square_array(rels):
-        dd = SquareRelationArray(rels) # type:ignore
-    elif _is_square_tensor(rels):
-        dd = SquareRelationTensor(rels) # type:ignore
-    elif _is_square_sparse(rels):
-        dd = SparseRelationArray(rels) # type:ignore
-    elif _is_triangular_array(rels):
-        dd = TriangularRelationArray(rels) # type:ignore
-    elif _is_triangular_tensor(rels):
-        dd = TriangularRelationTensor(rels) # type:ignore
-    elif _is_array_tuple(rels):
-        dd = NeighborRelationTuple(rels) # type:ignore
+    if _is_square_array(relations):
+        rd = SquareRelationArray(relations) # type:ignore
+    elif _is_square_tensor(relations):
+        rd = SquareRelationTensor(relations) # type:ignore
+    elif _is_square_sparse(relations):
+        rd = SparseRelationArray(relations) # type:ignore
+    elif _is_triangular_array(relations):
+        rd = TriangularRelationArray(relations) # type:ignore
+    elif _is_triangular_tensor(relations):
+        rd = TriangularRelationTensor(relations) # type:ignore
+    elif _is_array_tuple(relations):
+        rd = NeighborRelationTuple(relations) # type:ignore
     else:
         raise TypeError(
             f'Input type not supported by {RelationData.__name__}.')
 
-    return dd
+    return rd
 
 
 class SquareRelationArray(RelationData):
+    """Relation data in the form of a square array.
+    
+    Args:
+        relations: A square numpy array of relation values.
+
+    Attributes:
+        data: The raw relation data.
+    """
 
     def __init__(self,
-        rels: np.ndarray
+        relations: np.ndarray
         ) -> None:
 
-        if not _is_square_array(rels):
+        if not _is_square_array(relations):
             raise ValueError('Expected square array.')
 
-        self.data = rels
+        self.data = relations
 
     def to_square_array(self) -> 'SquareRelationArray':
         return self
@@ -102,15 +154,23 @@ class SquareRelationArray(RelationData):
 
 
 class SquareRelationTensor(RelationData):
+    """Relation data in the form of a square tensor.
+    
+    Args:
+        relations: A square PyTorch tensor of relation values.
+
+    Attributes:
+        data: The raw relation data.
+    """
 
     def __init__(self,
-        rels: torch.Tensor
+        relations: torch.Tensor
         ) -> None:
 
-        if not _is_square_tensor(rels):
+        if not _is_square_tensor(relations):
             raise ValueError('Expected square tensor.')
 
-        self.data = rels
+        self.data = relations
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(self.data.detach().numpy())
@@ -149,17 +209,26 @@ class SquareRelationTensor(RelationData):
 
 
 class TriangularRelationArray(RelationData):
+    """Relation data in 'triangular' vector-form.
+    
+    Args:
+        relations: A numpy array of relation values, as accepted by
+        :func:`scipy.spatial.distance.squareform`.
+
+    Attributes:
+        data: The raw relation data.
+    """
 
     def __init__(self,
-        rels: np.ndarray
+        relations: np.ndarray
         ) -> None:
 
-        if not _is_triangular_array(rels):
+        if not _is_triangular_array(relations):
             raise ValueError(
                 'Expected vector-form relation array.'
             )
 
-        self.data = rels
+        self.data = relations
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -189,17 +258,26 @@ class TriangularRelationArray(RelationData):
 
 
 class TriangularRelationTensor(RelationData):
+    """Relation data in 'triangular' vector-form.
+    
+    Args:
+        relations: A PyTorch tensor of relation values, with a
+        shape as accepted by :func:`scipy.spatial.distance.squareform`.
+
+    Attributes:
+        data: The raw relation data.
+    """
 
     def __init__(self,
-        rels: torch.Tensor
+        relations: torch.Tensor
         ) -> None:
 
-        if not _is_triangular_tensor(rels):
+        if not _is_triangular_tensor(relations):
             raise ValueError(
                 'Expected vector-form relation tensor.'
             )
 
-        self.data = rels
+        self.data = relations
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -236,6 +314,15 @@ class TriangularRelationTensor(RelationData):
 
 
 class SparseRelationArray(RelationData):
+    """Relation data in sparse array form.
+    
+    Args:
+        relations: A square, sparse scipy array of relation values.
+
+    Attributes:
+        data: The raw relation data.
+    """
+
     def __init__(self,
         rels: scipy.sparse.spmatrix
         ) -> None:
@@ -277,20 +364,32 @@ class SparseRelationArray(RelationData):
 
 
 class NeighborRelationTuple(RelationData):
+    """Relation data in neighbord tuple form.
+    
+    Args:
+        relations: A tuple (n, r) of relation data, where n is an
+        array of neighor indices for each data point and r is an
+        array of relation values. Both arrays must be of shape
+        (num_points, num_neighbors).
+
+    Attributes:
+        data: The raw relation data.
+    """
+
     def __init__(self,
-        reldata: Tuple[
+        relations: Tuple[
             np.ndarray,
             np.ndarray
         ]
         ) -> None:
 
-        if not _is_array_tuple(reldata):
+        if not _is_array_tuple(relations):
             raise ValueError(
                 'Expected tuple of arrays (neighbors, relations).'
             )
 
         # sort entries by ascending relation values
-        neighbors, rels = reldata
+        neighbors, rels = relations
         indices = rels.argsort()
         neighbors = np.take_along_axis(neighbors, indices, axis=1)
         rels = np.take_along_axis(rels, indices, axis=1)

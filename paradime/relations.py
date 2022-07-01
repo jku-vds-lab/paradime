@@ -27,6 +27,10 @@ Transform = Union[
 ]
 
 class Relations():
+    """Base class for calculating relations between data points.
+    
+    Custom relations should subclass this class.
+    """
     
     def __init__(self,
         transform: Transform = None
@@ -58,6 +62,18 @@ class Relations():
 
 
 class Precomputed(Relations):
+    """Precomputed relations between data points.
+
+    Args:
+        X: The precomputed relations, in a form accepted by
+            :func:`relation_factory`.
+        transform: A single transform or list of transforms
+            to be applied to the relations.
+
+    Attributes:
+        relations: A :class:`RelationData` instance containing the
+        (possibly transformed) relations.
+    """
 
     def __init__(self,
         X: Tensor,
@@ -75,6 +91,15 @@ class Precomputed(Relations):
         X: Tensor = None,
         **kwargs
         ) -> pdrel.RelationData:
+        """Obtain the precomputed relations.
+
+        Args:
+            X: Ignored, since relations are already precomputed.
+
+        Returns:
+            A RelationData instance containing the (possibly
+            transformed) relations.
+        """
 
         if X is not None:
             warnings.warn('Ignoring input for precomputed relations.')
@@ -83,11 +108,26 @@ class Precomputed(Relations):
 
 
 class PDist(Relations):
+    """Full pairwise distances between data points.
+    
+    Args:
+        metric: The distance metric to be used.
+        transform: A single transform or list of transforms
+            to be applied to the relations.
+        keep_result: Specifies whether or not to keep previously
+            calculated distances, rather than computing new ones.
+        verbose: Verbosity toggle.
+
+    Attributes:
+        relations: A RelationData instance containing the (possibly
+        transformed) pairwise distances. Available only after
+        calling :meth:`compute_relations`.
+    """
  
     def __init__(self,
         metric: Metric = None,
-        keep_result = True,
         transform: Union[Callable, pdtf.RelationTransform] = None,
+        keep_result = True,
         verbose: Union[int, bool] = False
         ) -> None:
 
@@ -106,6 +146,15 @@ class PDist(Relations):
         X: Tensor = None,
         **kwargs
         ) -> pdrel.RelationData:
+        """Calculates the pairwise distances.
+
+        Args:
+            X: Input data tensor with one sample per row.
+
+        Returns:
+            A RelationData instance containing the (possibly
+            transformed) pairwise distances.
+        """
 
         if X is None:
             raise ValueError(
@@ -127,6 +176,25 @@ class PDist(Relations):
 
 
 class NeighborBasedPDist(Relations):
+    """Approximate, nearest-neighbor-based pairwise distances
+    between data points.
+    
+    Args:
+        n_neighbors: Number of nearest neighbors to be considered.
+            If not specified, this will be set to 5 percent of the
+            data points. If the transforms include any perplexity-based
+            ones, this parameter will be overridden according to the
+            highest perplexity.
+        metric: The distance metric to be used.
+        transform: A single transform or list of transforms
+            to be applied to the relations.
+        verbose: Verbosity toggle.
+
+    Attributes:
+        relations: A RelationData instance containing the (possibly
+        transformed) pairwise distances. Available only after
+        calling :meth:`compute_relations`.
+    """
 
     def __init__(self,
         n_neighbors: int = None,
@@ -147,6 +215,15 @@ class NeighborBasedPDist(Relations):
         X: Tensor = None,
         **kwargs
         ) -> pdrel.RelationData:
+        """Calculates the pairwise distances.
+
+        Args:
+            X: Input data tensor with one sample per row.
+
+        Returns:
+            A RelationData instance containing the (possibly
+            transformed) pairwise distances.
+        """
 
         if X is None:
             raise ValueError(
@@ -203,6 +280,21 @@ class NeighborBasedPDist(Relations):
 
 
 class DifferentiablePDist(Relations):
+    """Differentiable pairwise distances between data points.
+    
+    Args:
+        p: Parameter that specificies which p-norm to use as
+            a distance function. Ignored if `metric` is set.
+        metric: The distance metric to be used.
+        transform: A single transform or list of transforms
+            to be applied to the relations.
+        verbose: Verbosity toggle.
+
+    Attributes:
+        relations: A RelationData instance containing the (possibly
+        transformed) pairwise distances. Available only after
+        calling :meth:`compute_relations`.
+    """
 
     def __init__(self,
         p: float = 2,
@@ -224,6 +316,17 @@ class DifferentiablePDist(Relations):
         X: Tensor = None,
         **kwargs
         ) -> pdrel.RelationData:
+        """Calculates the pairwise distances. If :param:`metric` is
+        not None, flexible memory-inefficient implementation
+        is used instead of PyTorch's `pdist`.
+
+        Args:
+            X: Input data tensor with one sample per row.
+
+        Returns:
+            A RelationData instance containing the (possibly
+            transformed) pairwise distances.
+        """
 
         if X is None:
             raise ValueError(

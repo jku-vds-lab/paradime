@@ -16,8 +16,9 @@ from scipy.sparse import csr_matrix
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
 
-from .relations import Relations
-from .types import Tensor
+from paradime.exceptions import NotTrainedError
+from paradime.relations import Relations
+from paradime.types import Tensor
 
 class Dataset(td.Dataset ):
     pass
@@ -44,7 +45,7 @@ class ParametricDR():
         sampler: Sampler,
         encoder: Encoder,
         decoder: Decoder,
-        loss_function: Union[Callable, Loss],
+        loss: Union[Callable, Loss],
         hd_relations: Relations,
         ld_relations: Relations
         ) -> None:
@@ -70,7 +71,10 @@ class ParametricDR():
         if self.trained:
             return self.encoder(X)
         else:
-            raise Exception("Encoder not trained!")
+            raise NotTrainedError(
+            "DR instance is not trained yet. Call 'train' with "
+            "appropriate arguments before using encoder."
+            )
 
     def train(self):
         pass

@@ -11,6 +11,10 @@ from .types import Tensor, Rels
 
 
 class RelationTransform():
+    """Base class for relation transforms.
+    
+    Custom transforms should subclass this class.
+    """
 
     def __init__(self):
         pass
@@ -18,10 +22,29 @@ class RelationTransform():
     def __call__(self,
         X: Union[Rels, pdrel.RelationData]
         ) -> pdrel.RelationData:
-        pass
+
+        return self.transform(X)
+
+    def transform(self,
+        X: Union[Rels, pdrel.RelationData]
+        ) -> pdrel.RelationData:
+        """Applies the transform to input data.
+        
+        Args:
+            X: A :class:`RelationData` instance or raw input data as
+                accepted by :func:`paradime.relationdata.relation_factory`.
+
+        Returns:
+            A :class:`RelationData` instance containing the transformed
+                relation values.
+        """
+
+        raise NotImplementedError()
 
 class Identity(RelationTransform):
-    def __call__(self,
+    """A placeholder identity transform."""
+
+    def transform(self,
         X: Union[Rels, pdrel.RelationData]
         ) -> pdrel.RelationData:
 
@@ -31,14 +54,29 @@ class Identity(RelationTransform):
             return pdrel.relation_factory(X)
 
 class PerplexityBased(RelationTransform):
+    """Applies a perplexity-based transformation to the relation values.
+
+    The relation values are rescaled using Guassian kernels. For each data
+    point, the kernel width is determined by comparing the entropy of the
+    relation values to the binary logarithm of the specified perplexity.
+    This is the relation transform used by t-SNE.
+
+    Args:
+        perplexity: The desired perplexity, which can be understood as
+            a smooth measure of nearest neighbors.
+        verbose: Verbosity toggle.
+        **kwargs: Passed on to :func:`scipy.optimize.root_scalar`, which
+            determines the kernel widths. By default, this is set to use a
+            bracket of [0.01, 1.] for the root search.    
+    """
     
     def __init__(self,
-        perp: float = 30,
+        perplexity: float = 30,
         verbose: bool = False,
         **kwargs # passed on to root_scalar
         ) -> None:
 
-        self.perplexity = perp
+        self.perplexity = perplexity
         self.kwargs = kwargs
         if not self.kwargs: # check if emtpy
             # self.kwargs['x0'] = 0.1
@@ -46,12 +84,6 @@ class PerplexityBased(RelationTransform):
             self.kwargs['bracket'] = [0.01, 1.]
 
         self.verbose = verbose
-
-    def __call__(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
-
-        return self.transform(X)
 
     def transform(self,
         X: Union[Rels, pdrel.RelationData]
@@ -74,13 +106,13 @@ class PerplexityBased(RelationTransform):
             report('Calculating probabilities.')
 
         for i in range(num_pts):
-            beta = find_beta(
+            beta = _find_beta(
                 X.data[1][i, 1:],
                 self.perplexity,
                 **self.kwargs
             )
             self.beta[i] = beta
-            p_ij[i] = p_i(X.data[1][i, 1:], beta)
+            p_ij[i] = _p_i(X.data[1][i, 1:], beta)
         
         return pdrel.NeighborRelationTuple((
             neighbors,
@@ -95,7 +127,7 @@ class PerplexityBased(RelationTransform):
         # return prdmad.SparseAffinityArray(p)
 
 @jit
-def entropy(
+def _entropy(
     dists: np.ndarray,
     beta: float) -> float:
 
@@ -112,7 +144,7 @@ def entropy(
     return result
 
 
-def p_i(
+def _p_i(
     dists: np.ndarray,
     beta: float) -> np.ndarray:
 
@@ -122,28 +154,28 @@ def p_i(
 
     return y / ysum
 
-def find_beta(
+def _find_beta(
     dists: np.ndarray,
     perp: float,
     **kwargs
     ) -> float:
     return scipy.optimize.root_scalar(
-        lambda b: entropy(dists, b) - np.log2(perp),
+        lambda b: _entropy(dists, b) - np.log2(perp),
         **kwargs
     ).root
 
 
 class Symmetrize(RelationTransform):
+    """Symmetrizes the relation values.
+    
+    Args:
+        impl: Specifies which symmetrization routine to use.
+            Allowed values are `'tsne'` and `'umap'`.
+    """
 
     def __init__(self, impl: Literal['tsne', 'umap']):
 
         self.impl = impl
-
-    def __call__(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
-
-        return self.transform(X)
 
     def transform(self,
         X: Union[Rels, pdrel.RelationData]
@@ -155,9 +187,9 @@ class Symmetrize(RelationTransform):
             X = X.to_sparse_array()
 
         if self.impl == 'tsne':
-            symmetrizer = symm_tsne
+            symmetrizer = _symm_tsne
         elif self.impl == 'umap':
-            symmetrizer = symm_umap
+            symmetrizer = _symm_umap
         else:
             raise ValueError('Expected specifier to be "umap" or "tsne".')
 
@@ -167,16 +199,16 @@ class Symmetrize(RelationTransform):
 
 
 @overload
-def symm_tsne(p: np.ndarray) -> np.ndarray:
+def _symm_tsne(p: np.ndarray) -> np.ndarray:
     ...
 @overload
-def symm_tsne(p: torch.Tensor) -> torch.Tensor:
+def _symm_tsne(p: torch.Tensor) -> torch.Tensor:
     ...
 @overload
-def symm_tsne(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
+def _symm_tsne(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
     ...
 
-def symm_tsne(p: Tensor) -> Tensor:
+def _symm_tsne(p: Tensor) -> Tensor:
     if isinstance(p, np.ndarray):
         return 0.5 * (p + p.T)
     elif isinstance(p, scipy.sparse.spmatrix):
@@ -188,16 +220,16 @@ def symm_tsne(p: Tensor) -> Tensor:
 
 
 @overload
-def symm_umap(p: np.ndarray) -> np.ndarray:
+def _symm_umap(p: np.ndarray) -> np.ndarray:
     ...
 @overload
-def symm_umap(p: torch.Tensor) -> torch.Tensor:
+def _symm_umap(p: torch.Tensor) -> torch.Tensor:
     ...
 @overload
-def symm_umap(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
+def _symm_umap(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
     ...
 
-def symm_umap(p: Tensor) -> Tensor:
+def _symm_umap(p: Tensor) -> Tensor:
     if isinstance(p, np.ndarray):
         return p + p.T - (p * p.T)
     elif isinstance(p, scipy.sparse.spmatrix):
@@ -209,12 +241,7 @@ def symm_umap(p: Tensor) -> Tensor:
 
 
 class NormalizeRows(RelationTransform):
-    
-    def __call__(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
-
-        return self.transform(X)
+    """Normalizes the relation value for each data point separately."""
 
     def transform(self,
         X: Union[Rels, pdrel.RelationData]
@@ -225,22 +252,22 @@ class NormalizeRows(RelationTransform):
         elif isinstance(X, pdrel.NeighborRelationTuple):
             X = X.to_sparse_array()
 
-        X.data = norm_rows(X.data)
+        X.data = _norm_rows(X.data)
 
         return X
 
 
 @overload
-def norm_rows(p: np.ndarray) -> np.ndarray:
+def _norm_rows(p: np.ndarray) -> np.ndarray:
     ...
 @overload
-def norm_rows(p: torch.Tensor) -> torch.Tensor:
+def _norm_rows(p: torch.Tensor) -> torch.Tensor:
     ...
 @overload
-def norm_rows(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
+def _norm_rows(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
     ...
 
-def norm_rows(p: Tensor) -> Tensor:
+def _norm_rows(p: Tensor) -> Tensor:
     if isinstance(p, np.ndarray):
         return p / p.sum(axis=1, keepdims=True)
     elif isinstance(p, scipy.sparse.spmatrix):
@@ -259,12 +286,7 @@ def norm_rows(p: Tensor) -> Tensor:
 
 
 class Normalize(RelationTransform):
-    
-    def __call__(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
-
-        return self.transform(X)
+    """Normalizes all relations."""
 
     def transform(self,
         X: Union[Rels, pdrel.RelationData]
