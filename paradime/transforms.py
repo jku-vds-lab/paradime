@@ -5,7 +5,7 @@ import scipy.sparse
 from numba import jit
 from typing import TypeVar, overload, Literal, Tuple, Union, Any
 
-from paradime import relationdata as pdrel
+from paradime import relationdata as pdreld
 from .utils import report
 from .types import Tensor, Rels
 
@@ -20,14 +20,14 @@ class RelationTransform():
         pass
 
     def __call__(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
         return self.transform(X)
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
         """Applies the transform to input data.
         
         Args:
@@ -45,13 +45,13 @@ class Identity(RelationTransform):
     """A placeholder identity transform."""
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
-        if isinstance(X, pdrel.RelationData):
+        if isinstance(X, pdreld.RelationData):
             return X
         else:
-            return pdrel.relation_factory(X)
+            return pdreld.relation_factory(X)
 
 class PerplexityBased(RelationTransform):
     """Applies a perplexity-based transformation to the relation values.
@@ -86,13 +86,13 @@ class PerplexityBased(RelationTransform):
         self.verbose = verbose
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
-        if isinstance(X, pdrel.RelationData):
+        if isinstance(X, pdreld.RelationData):
             X = X.to_array_tuple()
         else:
-            X = pdrel.relation_factory(X).to_array_tuple()
+            X = pdreld.relation_factory(X).to_array_tuple()
 
         neighbors = X.data[0][:, 1:]
         num_pts, k = neighbors.shape
@@ -114,7 +114,7 @@ class PerplexityBased(RelationTransform):
             self.beta[i] = beta
             p_ij[i] = _p_i(X.data[1][i, 1:], beta)
         
-        return pdrel.NeighborRelationTuple((
+        return pdreld.NeighborRelationTuple((
             neighbors,
             p_ij
         ))
@@ -178,12 +178,12 @@ class Symmetrize(RelationTransform):
         self.impl = impl
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
-        if not isinstance(X, pdrel.RelationData):
-            X = pdrel.relation_factory(X)
-        elif isinstance(X, pdrel.NeighborRelationTuple):
+        if not isinstance(X, pdreld.RelationData):
+            X = pdreld.relation_factory(X)
+        elif isinstance(X, pdreld.NeighborRelationTuple):
             X = X.to_sparse_array()
 
         if self.impl == 'tsne':
@@ -244,12 +244,12 @@ class NormalizeRows(RelationTransform):
     """Normalizes the relation value for each data point separately."""
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
-        if not isinstance(X, pdrel.RelationData):
-            X = pdrel.relation_factory(X)
-        elif isinstance(X, pdrel.NeighborRelationTuple):
+        if not isinstance(X, pdreld.RelationData):
+            X = pdreld.relation_factory(X)
+        elif isinstance(X, pdreld.NeighborRelationTuple):
             X = X.to_sparse_array()
 
         X.data = _norm_rows(X.data)
@@ -289,12 +289,12 @@ class Normalize(RelationTransform):
     """Normalizes all relations."""
 
     def transform(self,
-        X: Union[Rels, pdrel.RelationData]
-        ) -> pdrel.RelationData:
+        X: Union[Rels, pdreld.RelationData]
+        ) -> pdreld.RelationData:
 
-        if not isinstance(X, pdrel.RelationData):
-            X = pdrel.relation_factory(X)
-        elif isinstance(X, pdrel.NeighborRelationTuple):
+        if not isinstance(X, pdreld.RelationData):
+            X = pdreld.relation_factory(X)
+        elif isinstance(X, pdreld.NeighborRelationTuple):
             X = X.to_sparse_array()
 
         X.data = X.data / X.data.sum()

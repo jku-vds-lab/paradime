@@ -1,39 +1,4 @@
-class Dissimilarity():
-    pass
-class Gaussian():
-    pass
-class PerplexityRescaler():
-    pass
-class ParametricDR():
-    pass
-class TSNESymmetrizer():
-    pass
-class StudentT():
-    pass
-class EmbeddingLoss():
-    pass
-class CompoundLoss():
-    pass
-class MSELoss():
-    pass
-class ClassificationLoss():
-    pass
-class Encoder():
-    pass
-class ReconstructionLoss():
-    pass
-class ShiftedGaussian():
-    pass
-class ConnectivityRescaler():
-    pass
-class EuclideanDistance():
-    pass
-class UMAPSymmetrizer():
-    pass
-class RescaledStudentT():
-    pass
-class PrecomputedDistances():
-    pass
+# type: ignore
 
 perp = 200
 hdim = 20
@@ -131,3 +96,5 @@ mds = ParametricDR(
         metric = MSELoss()
     )
 )
+
+#-----------------------------------

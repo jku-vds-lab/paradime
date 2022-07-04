@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse
 from scipy.spatial.distance import squareform
 
-from .types import Rels
+from .types import IndexList, Rels
 from .utils import report
 
 class RelationData():
@@ -12,6 +12,12 @@ class RelationData():
 
     def __init__(self):
         self.data = None
+
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        # TODO: implement submatrix
+
+        return torch.tensor([0.])
+
 
     def to_square_array(self) -> 'SquareRelationArray':
         """Converts the relations to a :class:`SquareRelationArray`.

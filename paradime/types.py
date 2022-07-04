@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 from scipy.sparse import spmatrix
 import torch
 
@@ -23,4 +24,10 @@ Tensor = Union[
 Metric = Union[
     Callable,
     str
+]
+
+IndexList = Union[
+    list[int],
+    npt.NDArray[np.integer],
+    torch.IntTensor
 ]

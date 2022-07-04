@@ -8,15 +8,15 @@ from pynndescent import NNDescent
 import scipy.sparse
 from scipy.spatial.distance import pdist, squareform
 
-from paradime import relationdata as pdrel
+from paradime import relationdata as pdreld
 from paradime import transforms as pdtf
 from .types import Metric, Tensor, Rels
 from .utils import report
 
 SingleTransform = Union[
         Callable[
-            [pdrel.RelationData],
-            pdrel.RelationData
+            [pdreld.RelationData],
+            pdreld.RelationData
         ],
         pdtf.RelationTransform
     ]
@@ -45,13 +45,13 @@ class Relations():
 
     def compute_relations(self,
         X: Tensor = None,
-        **kwargs) -> pdrel.RelationData:
+        **kwargs) -> pdreld.RelationData:
 
         raise NotImplementedError
 
     def _transform(self,
-        X: pdrel.RelationData
-        ) -> pdrel.RelationData:
+        X: pdreld.RelationData
+        ) -> pdreld.RelationData:
 
         if self.transform is None:
             return X
@@ -85,12 +85,12 @@ class Precomputed(Relations):
         )
 
         self.relations = self._transform(
-            pdrel.relation_factory(X))
+            pdreld.relation_factory(X))
 
     def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> pdrel.RelationData:
+        ) -> pdreld.RelationData:
         """Obtain the precomputed relations.
 
         Args:
@@ -145,7 +145,7 @@ class PDist(Relations):
     def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> pdrel.RelationData:
+        ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
 
         Args:
@@ -167,7 +167,7 @@ class PDist(Relations):
             if self.verbose:
                 report('Calculating pairwise distances.')
             self.relations = self._transform(
-                pdrel.relation_factory(pdist(X, metric=self.metric))
+                pdreld.relation_factory(pdist(X, metric=self.metric))
             )
         elif self.verbose:
             report('Using previously calculated distances.')
@@ -214,7 +214,7 @@ class NeighborBasedPDist(Relations):
     def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> pdrel.RelationData:
+        ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
 
         Args:
@@ -271,7 +271,7 @@ class NeighborBasedPDist(Relations):
         neighbors, distances = index.neighbor_graph
 
         self.relations = self._transform(
-            pdrel.relation_factory(
+            pdreld.relation_factory(
                 (neighbors, distances)
             )
         )
@@ -315,7 +315,7 @@ class DifferentiablePDist(Relations):
     def compute_relations(self,
         X: Tensor = None,
         **kwargs
-        ) -> pdrel.RelationData:
+        ) -> pdreld.RelationData:
         """Calculates the pairwise distances. If :param:`metric` is
         not None, flexible memory-inefficient implementation
         is used instead of PyTorch's `pdist`.
@@ -351,7 +351,7 @@ class DifferentiablePDist(Relations):
             # apply metric to pairs of items
             diss = self.metric(tiled, tiled.transpose(0, 1))
             self.relations = self._transform(
-                pdrel.SquareRelationTensor(diss)
+                pdreld.SquareRelationTensor(diss)
             )
         # otherwise use built-in torch method
         else:
@@ -361,7 +361,7 @@ class DifferentiablePDist(Relations):
             i, j = torch.triu_indices(n, n, offset=1)
             diss[[i, j]] = diss_cond
             self.relations = self._transform(
-                pdrel.SquareRelationTensor(
+                pdreld.SquareRelationTensor(
                     diss + diss.T
                 )
             )
