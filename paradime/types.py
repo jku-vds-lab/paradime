@@ -26,6 +26,11 @@ Metric = Union[
     str
 ]
 
+LossFun = Callable[
+    [torch.Tensor, torch.Tensor],
+    torch.Tensor
+]
+
 IndexList = Union[
     list[int],
     npt.NDArray[np.integer],
