@@ -93,15 +93,47 @@ class NegSampledEdgeDataset(td.Dataset):
         )
         p_simpl[0] = 1
 
+        indices = torch.tensor(np.unique(
+            np.concatenate((rows.numpy(), cols.numpy()))
+        ))
+
         edge_data = {
             'row': rows,
             'col': cols,
             'rel': p_simpl,
+            'indices': indices
         }
 
-        remaining_data = self.dataset[idx]
+        remaining_data = td.default_collate(
+            [ self.dataset[i] for i in indices ]
+        )
 
         return {**remaining_data, **edge_data}
+
+def _collate_edge_batch(
+    raw_batch: list[dict[str, torch.Tensor]]
+) -> dict[str, torch.Tensor]:
+
+    indices, unique_ids = np.unique(
+        torch.concat([ i['indices'] for i in raw_batch ]),
+        return_index=True
+    )
+
+    collated_batch = {
+        'indices': torch.tensor(indices)
+    }
+
+    for k in raw_batch[0]:
+        if k not in ['row', 'col', 'rel']:
+            collated_batch[k] = torch.concat(
+                [ i[k] for i in raw_batch]
+            )[torch.tensor(unique_ids)]
+        else:
+            collated_batch[k] = torch.concat(
+                [ i[k] for i in raw_batch ]
+            )
+    
+    return collated_batch
 
 
 
@@ -138,66 +170,91 @@ class TrainingPhase():
             raise ValueError(
                 f"{self.optimizer} is not a valid PyTorch optimizer."
             )
-
-    def _prepare_loader(self,
-        dataset: td.Dataset,
-        relations: Optional[pdreldata.RelationData] = None,
-    ) -> None:
-
-        if self.sampling == 'negative_edge':
-            if relations is None:
-                raise ValueError(
-                    "Negative edge-sampling requires relation data."
-                )
         
 
 
-    # def run(self, dataset: td.Dataset) -> None:
-
-        
-
+GlobalRel = Union[
+    pdrel.Relations,
+    dict[str, pdrel.Relations]
+]
 
 class ParametricDR():
 
     def __init__(self,
         model: pdmod.Model,
-        hd_relations: pdrel.Relations = None,
-        ld_relations: pdrel.Relations = None
+        global_relations: Optional[GlobalRel] = None,
         ) -> None:
 
         self.model = model
-        self.hd_relations = hd_relations
-        self.ld_relations = ld_relations
 
+        if isinstance(global_relations, pdrel.Relations):
+            self.global_relations = {
+                'rel': global_relations
+            }
+        elif global_relations is not None:
+            self.global_relations = global_relations
 
-
+        self.training_phases: list[TrainingPhase] = []
         self.trained = False
 
     def __call__(self,
         X: Tensor
-        ) -> torch.Tensor: 
+    ) -> torch.Tensor: 
         
-        return self.encode(X)
+        return self.embed(X)
 
-    def encode(self,
+    def embed(self,
         X: Tensor
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         X = pdutils._convert_input_to_torch(X)
 
-        if not hasattr(self.model, 'encode'):
+        if not hasattr(self.model, 'embed'):
             raise AttributeError(
-                "Model has no 'encode' method."
+                "Model has no 'embed' method."
             )
 
         if self.trained:
-            return self.model.encode(X)
+            return self.model.embed(X)
         else:
             raise NotTrainedError(
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before using encoder."
             )
-    
+
+    def add_training_phase(
+        self,
+        n_epochs: int = 5,
+        batch_size: int = 50,
+        sampling: Literal['standard', 'negative_edge'] = 'standard',
+        batch_relations: Optional[dict[str, pdrel.Relations]] = None,
+        loss: pdloss.Loss = pdloss.Loss(),
+        optimizer: type = torch.optim.Adam,
+        learning_rate: float = 0.01,
+        **kwargs
+    ) -> None:
+        self.training_phases.append(
+            TrainingPhase(
+                n_epochs,
+                batch_size,
+                sampling,
+                batch_relations,
+                loss,
+                optimizer,
+                learning_rate,
+                **kwargs
+            )
+        )
+
+    def _prepare_loader(self,
+        training_phase: TrainingPhase
+    ) -> None:
+
+        if training_phase.sampling == 'negative_edge':
+            if self.global_relations is None:
+                raise ValueError(
+                    "Negative edge-sampling requires relation data."
+                )  
 
     def _prepare_dataset_and_loader(self,
         dataset: Union[td.Dataset, torch.Tensor],
