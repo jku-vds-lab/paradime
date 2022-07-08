@@ -8,9 +8,12 @@ from pynndescent import NNDescent
 import scipy.sparse
 from scipy.spatial.distance import pdist, squareform
 
-from paradime import relationdata as pdreld
-from paradime import transforms as pdtf
+import paradime.relationdata as pdreld
+import paradime.transforms as pdtf
+import paradime.utils as pdutils
+
 from .types import Metric, Tensor, Rels
+
 from .utils import report
 
 SingleTransform = Union[
@@ -161,7 +164,7 @@ class PDist(Relations):
                 'Missing input for non-precomputed relations.'
             )
 
-        X = _convert_input_to_numpy(X)
+        X = pdutils._convert_input_to_numpy(X)
 
         if not hasattr(self, 'relations') or not self.keep_result:
             if self.verbose:
@@ -230,7 +233,7 @@ class NeighborBasedPDist(Relations):
                 'Missing input for non-precomputed relations.'
             )
 
-        X = _convert_input_to_numpy(X)
+        X = pdutils._convert_input_to_numpy(X)
 
         num_pts = X.shape[0]
 
@@ -339,7 +342,7 @@ class DifferentiablePDist(Relations):
                 'for which no gradients are computed.'
             )
 
-        X = _convert_input_to_torch(X)
+        X = pdutils._convert_input_to_torch(X)
 
         # use memory-inefficient pdist to allow for arbitrary metrics
         # will break for large batches
@@ -367,34 +370,3 @@ class DifferentiablePDist(Relations):
             )
 
         return self.relations
-
-
-
-def _convert_input_to_numpy(
-    X: Tensor) -> np.ndarray:
-    
-    if isinstance(X, torch.Tensor):
-        X = X.detach().cpu().numpy()
-    elif isinstance(X, scipy.sparse.spmatrix):
-        X = X.toarray()
-    elif isinstance(X, np.ndarray):
-        pass
-    else:
-        raise TypeError(f'Input type {type(X)} not supported')
-
-    return X
-
-def _convert_input_to_torch(
-    X: Tensor) -> torch.Tensor:
-
-    if isinstance(X, torch.Tensor):
-        pass
-    elif isinstance(X, scipy.sparse.spmatrix):
-        # TODO: conserve sparseness
-        X = torch.tensor(X.toarray())
-    elif isinstance(X, np.ndarray):
-        X = torch.tensor(X)
-    else:
-        raise TypeError(f'Input type {type(X)} not supported')
-
-    return X
