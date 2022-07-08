@@ -14,8 +14,6 @@ import paradime.utils as pdutils
 
 from .types import Metric, Tensor, Rels
 
-from .utils import report
-
 SingleTransform = Union[
         Callable[
             [pdreld.RelationData],
@@ -131,7 +129,7 @@ class PDist(Relations):
         metric: Metric = None,
         transform: Union[Callable, pdtf.RelationTransform] = None,
         keep_result = True,
-        verbose: Union[int, bool] = False
+        verbose: bool = False
         ) -> None:
 
         if metric is None:
@@ -168,12 +166,12 @@ class PDist(Relations):
 
         if not hasattr(self, 'relations') or not self.keep_result:
             if self.verbose:
-                report('Calculating pairwise distances.')
+                pdutils.report('Calculating pairwise distances.')
             self.relations = self._transform(
                 pdreld.relation_factory(pdist(X, metric=self.metric))
             )
         elif self.verbose:
-            report('Using previously calculated distances.')
+            pdutils.report('Using previously calculated distances.')
 
         return self.relations
 
@@ -203,7 +201,7 @@ class NeighborBasedPDist(Relations):
         n_neighbors: int = None,
         metric: Metric = None,
         transform: Union[Callable, pdtf.RelationTransform] = None,
-        verbose: Union[bool, int] = False
+        verbose: bool = False
         ) -> None:
 
         super().__init__(
@@ -262,7 +260,7 @@ class NeighborBasedPDist(Relations):
                 self.n_neighbors = int(min(num_pts - 1, 3 * perp))
         
         if self.verbose:
-            report('Indexing nearest neighbors.')
+            pdutils.report('Indexing nearest neighbors.')
 
         if self.metric is None:
             self.metric = 'euclidean'
@@ -303,7 +301,6 @@ class DifferentiablePDist(Relations):
         p: float = 2,
         metric: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
         transform: Union[Callable, pdtf.RelationTransform] = None,
-        verbose: Union[int, bool] = False
         ) -> None:
 
         super().__init__(
@@ -312,8 +309,6 @@ class DifferentiablePDist(Relations):
 
         self.metric = metric
         self.metric_p = p
-
-        self.verbose = verbose
 
     def compute_relations(self,
         X: Tensor = None,

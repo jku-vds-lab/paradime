@@ -1,6 +1,7 @@
 from datetime import datetime
 import warnings
 from typing import Union, Callable, Literal, Optional
+from attr import has
 # from grpc import Call
 from numba.core.types.scalars import Boolean
 import torch
@@ -16,33 +17,58 @@ import paradime.relations as pdrel
 import paradime.models as pdmod
 import paradime.loss as pdloss
 import paradime.utils as pdutils
+import paradime.exceptions as pdexc
 from paradime.types import Tensor
-from paradime.exceptions import NotTrainedError
+
+Data = Union[
+    np.ndarray,
+    torch.Tensor,
+    dict[str, Union[
+        np.ndarray,
+        torch.Tensor
+    ]]
+]
 
 class Dataset(td.Dataset):
 
-    def __init__(self, data: dict[str, torch.Tensor]):
+    def __init__(self, data: Data) -> None:
 
-        self.data = data
+        self.data: dict[str, torch.Tensor] = {}
 
-        self._check_input()
-
-    def _check_input(self) -> None:
-
-        if not 'data' in self.data:
-            raise AttributeError(
-                "Dataset expects a dict with a 'data' entry."
-            )
-
-        lengths = []
-        for k in self.data:
-            lengths.append(len(self.data[k]))
-        if len(set(lengths)) != 1:
+        if isinstance(data, np.ndarray):
+            self.data['data'] = torch.tensor(data)
+        elif isinstance(data, torch.Tensor):
+            self.data['data'] = data
+        elif isinstance(data, dict):
+            if 'data' not in self.data:
+                raise AttributeError(
+                    "Dataset expects a dict with a 'data' entry."
+                )
+            for k in data:
+                if len(data[k]) != len(data['data']):
+                    raise ValueError(
+                        "Dataset dict must have values of equal length."
+                    )
+                if isinstance(data[k], np.ndarray):
+                    self.data[k] = torch.tensor(data[k])
+                elif isinstance(data[k], torch.Tensor):
+                    self.data[k] = data[k]  # type: ignore
+                else:
+                    raise ValueError(
+                        f"Value for key {k} is not a numpy array "
+                        "or PyTorch tensor."
+                    )
+        else:
             raise ValueError(
-                "Dataset expects a dict with tensors of equal length."
+                "Expected numpy array, PyTorch tensor, or dict "
+                f"instead of {type(data)}."
             )
 
-    def __len__(self):
+        if 'indices' not in self.data:
+            self.data['indices'] = torch.arange(len(self))
+        
+
+    def __len__(self) -> int:
         return len(self.data['data'])
 
     def __getitem__(self, index) -> dict[str, torch.Tensor]:
@@ -62,9 +88,10 @@ class NegSampledEdgeDataset(td.Dataset):
 
         self.dataset = dataset
         self.p_ij = relations.to_sparse_array().data.tocoo()
+        self.weights = self.p_ij.data
         self.neg_sampling_rate = neg_sampling_rate
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.p_ij.data)
     
     def __getitem__(self,
@@ -143,7 +170,8 @@ class TrainingPhase():
         n_epochs: int = 5,
         batch_size: int = 50,
         sampling: Literal['standard', 'negative_edge'] = 'standard',
-        batch_relations: Optional[dict[str, pdrel.Relations]] = None,
+        edge_rel_key: str = 'rel',
+        neg_sampling_rate: int = 5,
         loss: pdloss.Loss = pdloss.Loss(),
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
@@ -157,8 +185,9 @@ class TrainingPhase():
             raise ValueError(
                 f"Unknown sampling option {self.sampling}."
             )
+        self.edge_rel_key = edge_rel_key
+        self.neg_sampling_rate = neg_sampling_rate
 
-        self.batch_relations = batch_relations
         self.loss = loss
         self.optimizer = optimizer
         self.learning_rate = learning_rate
@@ -173,7 +202,7 @@ class TrainingPhase():
         
 
 
-GlobalRel = Union[
+RelOrRelDict = Union[
     pdrel.Relations,
     dict[str, pdrel.Relations]
 ]
@@ -182,20 +211,46 @@ class ParametricDR():
 
     def __init__(self,
         model: pdmod.Model,
-        global_relations: Optional[GlobalRel] = None,
+        global_relations: Optional[RelOrRelDict] = None,
+        batch_relations: Optional[RelOrRelDict] = None,
+        training_phases: Optional[list[TrainingPhase]] = None,
+        verbose: bool = False
         ) -> None:
 
         self.model = model
 
+        # TODO: check relation input for validity
         if isinstance(global_relations, pdrel.Relations):
             self.global_relations = {
                 'rel': global_relations
             }
         elif global_relations is not None:
             self.global_relations = global_relations
+        else:
+            self.global_relations = {}
+        
+        self.global_relation_data: dict[str, pdreldata.RelationData] = {}
+        self._global_relations_computed = False
+        
+        if isinstance(batch_relations, pdrel.Relations):
+            self.batch_relations = {
+                'rel': batch_relations
+            }
+        elif batch_relations is not None:
+            self.batch_relations = batch_relations
+        else:
+            self.batch_relations = {}
 
         self.training_phases: list[TrainingPhase] = []
+        if training_phases is not None:
+            for tp in training_phases:
+                self.add_training_phase(tp)
+
         self.trained = False
+        self.dataset: Optional[Dataset] = None
+        self._dataset_registered = False
+
+        self.verbose = verbose
 
     def __call__(self,
         X: Tensor
@@ -217,17 +272,17 @@ class ParametricDR():
         if self.trained:
             return self.model.embed(X)
         else:
-            raise NotTrainedError(
+            raise pdexc.NotTrainedError(
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before using encoder."
             )
 
-    def add_training_phase(
-        self,
+    def add_training_phase(self,
         n_epochs: int = 5,
         batch_size: int = 50,
         sampling: Literal['standard', 'negative_edge'] = 'standard',
-        batch_relations: Optional[dict[str, pdrel.Relations]] = None,
+        edge_rel_key: str = 'rel',
+        neg_sampling_rate: int = 5,
         loss: pdloss.Loss = pdloss.Loss(),
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
@@ -238,7 +293,8 @@ class ParametricDR():
                 n_epochs,
                 batch_size,
                 sampling,
-                batch_relations,
+                edge_rel_key,
+                neg_sampling_rate,
                 loss,
                 optimizer,
                 learning_rate,
@@ -246,49 +302,85 @@ class ParametricDR():
             )
         )
 
-    def _prepare_loader(self,
-        training_phase: TrainingPhase
+    def register_dataset(self,
+        data: Data
     ) -> None:
 
+        if isinstance(data, Dataset):
+            self.dataset = data
+        else:
+            self.dataset = Dataset(data)
+
+        self._dataset_registered = True
+
+    def _compute_global_relations(self) -> None:
+
+        if not self._dataset_registered:
+            raise pdexc.NoDatasetRegisteredError(
+                "Cannot compute global relations before registering dataset."
+            )
+        assert isinstance(self.dataset, Dataset)
+        
+        for k in self.global_relations:
+            if self.verbose:
+                pdutils.report(
+                    f"Computing global relations {k}."
+                )
+            self.global_relation_data[k] = (
+                self.global_relations[k].compute_relations(
+                    self.dataset.data['data']
+                ))
+                
+        self._global_relations_computed = True
+
+
+    def _prepare_loader(self,
+        training_phase: TrainingPhase
+    ) -> td.DataLoader:
+
+        if not self._dataset_registered:
+            raise pdexc.NoDatasetRegisteredError(
+                "Cannot prepare loader before registering dataset."
+            )
+        assert isinstance(self.dataset, Dataset)
+
+        if not self._global_relations_computed:
+            raise pdexc.RelationsNotComputedError(
+                "Cannot prepare loader before computing global relations."
+            )
+
         if training_phase.sampling == 'negative_edge':
-            if self.global_relations is None:
+            if training_phase.edge_rel_key not in self.global_relation_data:
                 raise ValueError(
-                    "Negative edge-sampling requires relation data."
-                )  
-
-    def _prepare_dataset_and_loader(self,
-        dataset: Union[td.Dataset, torch.Tensor],
-        sampling: Literal['default', 'negative_edge'] = 'default',
-        relations: pdrel.Relations = None,
-        batch_size: int = 50
-        ) -> tuple[td.Dataset, td.DataLoader]:
-
-        if sampling == 'default':
-            if isinstance(dataset, torch.Tensor):
-                dataset = Dataset({
-                    'data': dataset,
-                    'index': torch.arange(len(dataset))
-                })
-            sampler = td.DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle = True
+                    f"Global relations {training_phase.edge_rel_key} "
+                    "not specified."
+                )
+            edge_dataset = NegSampledEdgeDataset(
+                self.dataset,
+                self.global_relation_data[training_phase.edge_rel_key],
+                training_phase.neg_sampling_rate
             )
-        elif sampling == 'negative_edge':
-            # TODO: implement negative edge sampling
-            if isinstance(dataset, torch.Tensor):
-                dataset = Dataset({
-                    'data': dataset,
-                    'index': torch.arange(len(dataset))
-                })
-            sampler = td.DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle = True
+            sampler = td.WeightedRandomSampler(
+                edge_dataset.weights,
+                num_samples=training_phase.batch_size
             )
-        #     dataset = ...
+            dataloader = td.DataLoader(
+                edge_dataset,
+                batch_size=training_phase.batch_size,
+                collate_fn=_collate_edge_batch,
+                sampler=sampler
+            )
+        else:
+            dataset = self.dataset
+            dataloader = td.DataLoader(
+                dataset,
+                batch_size=training_phase.batch_size,
+                shuffle=True
+            )
 
-        return dataset, sampler
+        return dataloader
+
+
 
 
 
