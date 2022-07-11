@@ -213,6 +213,7 @@ class ParametricDR():
         model: pdmod.Model,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
+        training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
         verbose: bool = False
         ) -> None:
@@ -241,10 +242,12 @@ class ParametricDR():
         else:
             self.batch_relations = {}
 
+        self.training_defaults = training_defaults
+
         self.training_phases: list[TrainingPhase] = []
         if training_phases is not None:
             for tp in training_phases:
-                self.add_training_phase(tp)
+                self.add_training_phase(training_phase=tp)
 
         self.trained = False
         self.dataset: Optional[Dataset] = None
@@ -277,30 +280,82 @@ class ParametricDR():
             "appropriate arguments before using encoder."
             )
 
-    def add_training_phase(self,
-        n_epochs: int = 5,
-        batch_size: int = 50,
-        sampling: Literal['standard', 'negative_edge'] = 'standard',
-        edge_rel_key: str = 'rel',
-        neg_sampling_rate: int = 5,
-        loss: pdloss.Loss = pdloss.Loss(),
-        optimizer: type = torch.optim.Adam,
-        learning_rate: float = 0.01,
+    def set_training_defaults(self,
+        training_phase: Optional[TrainingPhase] = None,
+        n_epochs: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        sampling: Optional[Literal['standard', 'negative_edge']] = None,
+        edge_rel_key: Optional[str] = None,
+        neg_sampling_rate: Optional[int] = None,
+        loss: Optional[pdloss.Loss] = None,
+        optimizer: Optional[type] = None,
+        learning_rate: Optional[float] = None,
         **kwargs
     ) -> None:
-        self.training_phases.append(
-            TrainingPhase(
-                n_epochs,
-                batch_size,
-                sampling,
-                edge_rel_key,
-                neg_sampling_rate,
-                loss,
-                optimizer,
-                learning_rate,
+
+        if training_phase is not None:
+            self.training_defaults = training_phase
+        if n_epochs is not None:
+            self.training_defaults.n_epochs = n_epochs
+        if batch_size is not None:
+            self.training_defaults.batch_size = batch_size
+        if sampling is not None:
+            self.training_defaults.sampling = sampling
+        if edge_rel_key is not None:
+            self.training_defaults.edge_rel_key = edge_rel_key
+        if neg_sampling_rate is not None:
+            self.training_defaults.neg_sampling_rate = neg_sampling_rate
+        if loss is not None:
+            self.training_defaults.loss = loss
+        if optimizer is not None:
+            self.training_defaults.optimizer = optimizer
+        if learning_rate is not None:
+            self.training_defaults.learning_rate = learning_rate
+        if kwargs:
+            self.training_defaults.kwargs = {
+                **self.training_defaults.kwargs,
                 **kwargs
-            )
-        )
+            }
+
+    def add_training_phase(self,
+        training_phase: Optional[TrainingPhase] = None,
+        n_epochs: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        sampling: Optional[Literal['standard', 'negative_edge']] = None,
+        edge_rel_key: Optional[str] = None,
+        neg_sampling_rate: Optional[int] = None,
+        loss: Optional[pdloss.Loss] = None,
+        optimizer: Optional[type] = None,
+        learning_rate: Optional[float] = None,
+        **kwargs
+    ) -> None:
+        if training_phase is not None:
+            training_phase = self.training_defaults
+        assert isinstance(training_phase, TrainingPhase)
+
+        if n_epochs is not None:
+            training_phase.n_epochs = n_epochs
+        if batch_size is not None:
+            training_phase.batch_size = batch_size
+        if sampling is not None:
+            training_phase.sampling = sampling
+        if edge_rel_key is not None:
+            training_phase.edge_rel_key = edge_rel_key
+        if neg_sampling_rate is not None:
+            training_phase.neg_sampling_rate = neg_sampling_rate
+        if loss is not None:
+            training_phase.loss = loss
+        if optimizer is not None:
+            training_phase.optimizer = optimizer
+        if learning_rate is not None:
+            training_phase.learning_rate = learning_rate
+        if kwargs:
+            training_phase.kwargs = {
+                **training_phase.kwargs,
+                **kwargs
+            }
+        
+        self.training_phases.append(training_phase)
 
     def register_dataset(self,
         data: Data
