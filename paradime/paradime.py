@@ -1,6 +1,6 @@
 from datetime import datetime
 import warnings
-from typing import Union, Callable, Literal, Optional
+from typing import Iterable, Union, Callable, Literal, Optional
 from attr import has
 # from grpc import Call
 from numba.core.types.scalars import Boolean
@@ -167,6 +167,7 @@ def _collate_edge_batch(
 class TrainingPhase():
 
     def __init__(self,
+        name: Optional[str] = None,
         n_epochs: int = 5,
         batch_size: int = 50,
         sampling: Literal['standard', 'negative_edge'] = 'standard',
@@ -175,9 +176,11 @@ class TrainingPhase():
         loss: pdloss.Loss = pdloss.Loss(),
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
+        report_interval: int = 5,
         **kwargs
     ) -> None:
         
+        self.name = name
         self.n_epochs = n_epochs
         self.batch_size = batch_size
         self.sampling = sampling
@@ -191,6 +194,7 @@ class TrainingPhase():
         self.loss = loss
         self.optimizer = optimizer
         self.learning_rate = learning_rate
+        self.report_interval = report_interval
         self.kwargs = kwargs
 
         try:
@@ -199,7 +203,6 @@ class TrainingPhase():
             raise ValueError(
                 f"{self.optimizer} is not a valid PyTorch optimizer."
             )
-        
 
 
 RelOrRelDict = Union[
@@ -215,6 +218,7 @@ class ParametricDR():
         batch_relations: Optional[RelOrRelDict] = None,
         training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
+        use_cuda: bool = False,
         verbose: bool = False
         ) -> None:
 
@@ -253,6 +257,7 @@ class ParametricDR():
         self.dataset: Optional[Dataset] = None
         self._dataset_registered = False
 
+        self.use_cuda = use_cuda
         self.verbose = verbose
 
     def __call__(self,
@@ -290,6 +295,7 @@ class ParametricDR():
         loss: Optional[pdloss.Loss] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
+        report_interval: Optional[int] = 5,
         **kwargs
     ) -> None:
 
@@ -311,6 +317,8 @@ class ParametricDR():
             self.training_defaults.optimizer = optimizer
         if learning_rate is not None:
             self.training_defaults.learning_rate = learning_rate
+        if report_interval is not None:
+            self.training_defaults.report_interval = report_interval
         if kwargs:
             self.training_defaults.kwargs = {
                 **self.training_defaults.kwargs,
@@ -319,6 +327,7 @@ class ParametricDR():
 
     def add_training_phase(self,
         training_phase: Optional[TrainingPhase] = None,
+        name: Optional[str] = None,
         n_epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
         sampling: Optional[Literal['standard', 'negative_edge']] = None,
@@ -327,12 +336,15 @@ class ParametricDR():
         loss: Optional[pdloss.Loss] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
+        report_interval: Optional[int] = None,
         **kwargs
     ) -> None:
         if training_phase is not None:
             training_phase = self.training_defaults
         assert isinstance(training_phase, TrainingPhase)
 
+        if name is not None:
+            training_phase.name = name
         if n_epochs is not None:
             training_phase.n_epochs = n_epochs
         if batch_size is not None:
@@ -349,6 +361,8 @@ class ParametricDR():
             training_phase.optimizer = optimizer
         if learning_rate is not None:
             training_phase.learning_rate = learning_rate
+        if report_interval is not None:
+            training_phase.report_interval = report_interval
         if kwargs:
             training_phase.kwargs = {
                 **training_phase.kwargs,
@@ -434,6 +448,56 @@ class ParametricDR():
             )
 
         return dataloader
+
+    def _prepare_optimizer(self,
+        training_phase: TrainingPhase
+    ) -> torch.optim.Optimizer:
+
+        optimizer: torch.optim.Optimizer = training_phase.optimizer(
+            self.model,
+            lr=training_phase.learning_rate,
+            **training_phase.kwargs
+        )
+
+        return optimizer
+
+    def run_training_phase(self,
+        training_phase: TrainingPhase
+    ) -> None:
+
+        dataloader = self._prepare_loader(training_phase)
+        optimizer = self._prepare_optimizer(training_phase)
+
+        for epoch in range(training_phase.n_epochs):
+            running_loss = 0.
+            batch: dict[str, torch.Tensor]
+
+            for batch in dataloader:
+
+                if self.use_cuda:
+                    for k in batch:
+                        batch[k] = batch[k].cuda()
+
+                optimizer.zero_grad()
+
+                loss = training_phase.loss.forward(
+                    self.model,
+                    self.global_relation_data,
+                    self.batch_relations,
+                    batch
+                )
+
+                running_loss += loss.item()
+
+                if self.verbose and epoch % training_phase.report_interval == 0:
+                    #TODO: replace by loss reporting mechanism (GH issue #3)
+                    pdutils.report(
+                        f"Loss after epoch {epoch}: {running_loss}"
+                    )
+
+                
+                
+                
 
 
 

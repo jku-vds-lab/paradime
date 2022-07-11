@@ -21,8 +21,8 @@ class Loss(torch.nn.Module):
 
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
@@ -35,16 +35,20 @@ class RelationLoss(Loss):
 
     def __init__(self,
         loss_function: LossFun,
+        global_relation_key: str = 'rel',
+        batch_relation_key: str = 'rel',
         name: str = None,
         ):
         super().__init__(name)
 
         self.loss_function = loss_function
+        self.global_relation_key = global_relation_key
+        self.batch_relation_key = batch_relation_key
 
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
@@ -52,8 +56,8 @@ class RelationLoss(Loss):
         assert isinstance(batch['indices'], torch.IntTensor)
 
         return self.loss_function(
-            hd_relations.sub(batch['indices']),
-            ld_relations.compute_relations(
+            hd_relations[self.global_relation_key].sub(batch['indices']),
+            ld_relations[self.batch_relation_key].compute_relations(
                 model.embed(batch['data'])
             ).data
         )
@@ -70,17 +74,18 @@ class ClassificationLoss(Loss):
         super().__init__(name)
 
         self.loss_function = loss_function
+        self.label_key = label_key
     
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
         return self.loss_function(
             model.classify(batch['data']),
-            batch['labels']
+            batch[self.label_key]
         )
 
 class PositionLoss(Loss):
@@ -95,17 +100,18 @@ class PositionLoss(Loss):
         super().__init__(name)
 
         self.loss_function = loss_function
+        self.position_key = position_key
     
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
         return self.loss_function(
             model.embed(batch['data']),
-            batch['pos']
+            batch[self.position_key]
         )
     
 class ReconstructionLoss(Loss):
@@ -122,8 +128,8 @@ class ReconstructionLoss(Loss):
 
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
@@ -154,8 +160,8 @@ class CompoundLoss(Loss):
         
     def forward(self,
         model: pdmod.Model,
-        hd_relations: pdreldata.RelationData,
-        ld_relations: pdrel.Relations,
+        hd_relations: dict[str, pdreldata.RelationData],
+        ld_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
