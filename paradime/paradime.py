@@ -40,7 +40,7 @@ class Dataset(td.Dataset):
         elif isinstance(data, torch.Tensor):
             self.data['data'] = data
         elif isinstance(data, dict):
-            if 'data' not in self.data:
+            if 'data' not in data:
                 raise AttributeError(
                     "Dataset expects a dict with a 'data' entry."
                 )
@@ -339,7 +339,7 @@ class ParametricDR():
         report_interval: Optional[int] = None,
         **kwargs
     ) -> None:
-        if training_phase is not None:
+        if training_phase is None:
             training_phase = self.training_defaults
         assert isinstance(training_phase, TrainingPhase)
 
@@ -454,7 +454,7 @@ class ParametricDR():
     ) -> torch.optim.Optimizer:
 
         optimizer: torch.optim.Optimizer = training_phase.optimizer(
-            self.model,
+            self.model.parameters(),
             lr=training_phase.learning_rate,
             **training_phase.kwargs
         )
@@ -487,13 +487,16 @@ class ParametricDR():
                     batch
                 )
 
+                loss.backward()
+                optimizer.step()
+
                 running_loss += loss.item()
 
-                if self.verbose and epoch % training_phase.report_interval == 0:
-                    #TODO: replace by loss reporting mechanism (GH issue #3)
-                    pdutils.report(
-                        f"Loss after epoch {epoch}: {running_loss}"
-                    )
+            if self.verbose and epoch % training_phase.report_interval == 0:
+                #TODO: replace by loss reporting mechanism (GH issue #3)
+                pdutils.report(
+                    f"Loss after epoch {epoch}: {running_loss}"
+                )
 
                 
                 

@@ -14,9 +14,18 @@ class RelationData():
         self.data = None
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        # TODO: implement submatrix
+        """Subsamples the relation matrix based on item indices.
+        
+        Args:
+            indices: A flat list of item indices.
+            
+        Returns:
+            A square PyTorch tensor consisting of all relations
+            between items with the given indices, intended to be
+            used for batch-wise subsampling of global relations.
+        """
 
-        return torch.tensor([0.])
+        raise NotImplementedError()
 
 
     def to_square_array(self) -> 'SquareRelationArray':
@@ -122,6 +131,13 @@ class SquareRelationArray(RelationData):
 
         self.data = relations
 
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        dim = len(indices)
+        indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
+        return torch.tensor(
+            self.data[indices[0], indices[1]].reshape(dim, dim)
+        )
+
     def to_square_array(self) -> 'SquareRelationArray':
         return self
 
@@ -177,6 +193,11 @@ class SquareRelationTensor(RelationData):
             raise ValueError('Expected square tensor.')
 
         self.data = relations
+
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        dim = len(indices)
+        indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
+        return self.data[indices[0], indices[1]].reshape(dim, dim)
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(self.data.detach().numpy())
@@ -236,6 +257,10 @@ class TriangularRelationArray(RelationData):
 
         self.data = relations
 
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        #TODO: implement memory-efficient version (GH issue #13)
+        return self.to_square_array().sub(indices)
+
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
             squareform(self.data)
@@ -284,6 +309,10 @@ class TriangularRelationTensor(RelationData):
             )
 
         self.data = relations
+
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        #TODO: implement memory-efficient version (GH Issue #13)
+        return self.to_square_array().sub(indices)
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -339,6 +368,10 @@ class SparseRelationArray(RelationData):
             )
 
         self.data = rels
+
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        #TODO: implement memory-efficient version (GH Issue #13)
+        return self.to_square_array().sub(indices)
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -401,6 +434,9 @@ class NeighborRelationTuple(RelationData):
         rels = np.take_along_axis(rels, indices, axis=1)
 
         self.data = (neighbors, rels)
+
+    def sub(self, indices: IndexList) -> torch.Tensor:
+        return self.to_sparse_array().sub(indices)
 
     def to_square_array(self) -> 'SquareRelationArray':
         return self.to_sparse_array().to_square_array()

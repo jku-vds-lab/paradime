@@ -34,5 +34,5 @@ LossFun = Callable[
 IndexList = Union[
     list[int],
     npt.NDArray[np.integer],
-    torch.IntTensor
+    torch.Tensor
 ]

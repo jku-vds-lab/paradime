@@ -52,9 +52,6 @@ class RelationLoss(Loss):
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
-
-        assert isinstance(batch['indices'], torch.IntTensor)
-
         return self.loss_function(
             hd_relations[self.global_relation_key].sub(batch['indices']),
             ld_relations[self.batch_relation_key].compute_relations(
