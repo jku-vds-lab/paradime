@@ -1,5 +1,6 @@
 import torch
 import uuid
+from typing import Optional
 
 import paradime.relations as pdrel
 import paradime.relationdata as pdreldata
@@ -11,7 +12,7 @@ class Loss(torch.nn.Module):
     _prefix = 'loss'
 
     def __init__(self,
-        name: str = None):
+        name: Optional[str] = None):
         super().__init__()
 
         if name is None:
@@ -37,7 +38,7 @@ class RelationLoss(Loss):
         loss_function: LossFun,
         global_relation_key: str = 'rel',
         batch_relation_key: str = 'rel',
-        name: str = None,
+        name: Optional[str] = None,
         ):
         super().__init__(name)
 
@@ -66,7 +67,7 @@ class ClassificationLoss(Loss):
     def __init__(self,
         label_key: str = 'labels',
         loss_function: LossFun = torch.nn.CrossEntropyLoss(),
-        name: str = None,
+        name: Optional[str] = None,
         ):
         super().__init__(name)
 
@@ -92,7 +93,7 @@ class PositionLoss(Loss):
     def __init__(self,
         position_key: str = 'pos',
         loss_function: LossFun = torch.nn.MSELoss(),
-        name: str = None,
+        name: Optional[str] = None,
         ):
         super().__init__(name)
 
@@ -117,7 +118,7 @@ class ReconstructionLoss(Loss):
 
     def __init__(self,
         loss_function: LossFun = torch.nn.MSELoss(),
-        name: str = None
+        name: Optional[str] = None
         ):
         super().__init__(name)
 
@@ -142,7 +143,7 @@ class CompoundLoss(Loss):
     def __init__(self,
         losses: list[Loss],
         weights: Tensor,
-        name: str = None):
+        name: Optional[str] = None):
         super().__init__(name)
 
         self.losses = losses

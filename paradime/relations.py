@@ -1,6 +1,6 @@
 from datetime import datetime
 import warnings
-from typing import Union, Callable, List, Literal, Tuple, Any
+from typing import Union, Callable, Optional
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -24,7 +24,7 @@ SingleTransform = Union[
 
 Transform = Union[    
     SingleTransform,
-    List[SingleTransform]
+    list[SingleTransform]
 ]
 
 class Relations():
@@ -34,7 +34,7 @@ class Relations():
     """
     
     def __init__(self,
-        transform: Transform = None
+        transform: Optional[Transform] = None
         ) -> None:
         
         if transform is None:
@@ -45,7 +45,7 @@ class Relations():
             self.transform = transform
 
     def compute_relations(self,
-        X: Tensor = None,
+        X: Optional[Tensor] = None,
         **kwargs) -> pdreld.RelationData:
 
         raise NotImplementedError
@@ -78,7 +78,7 @@ class Precomputed(Relations):
 
     def __init__(self,
         X: Tensor,
-        transform: Union[Callable, pdtf.RelationTransform] = None
+        transform: Optional[Transform] = None
         ) -> None:
 
         super().__init__(
@@ -89,7 +89,7 @@ class Precomputed(Relations):
             pdreld.relation_factory(X))
 
     def compute_relations(self,
-        X: Tensor = None,
+        X: Optional[Tensor] = None,
         **kwargs
         ) -> pdreld.RelationData:
         """Obtain the precomputed relations.
@@ -126,8 +126,8 @@ class PDist(Relations):
     """
  
     def __init__(self,
-        metric: Metric = None,
-        transform: Union[Callable, pdtf.RelationTransform] = None,
+        metric: Optional[Metric] = None,
+        transform: Optional[Transform] = None,
         keep_result = True,
         verbose: bool = False
         ) -> None:
@@ -144,7 +144,7 @@ class PDist(Relations):
         self.verbose = verbose
 
     def compute_relations(self,
-        X: Tensor = None,
+        X: Optional[Tensor] = None,
         **kwargs
         ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
@@ -198,9 +198,9 @@ class NeighborBasedPDist(Relations):
     """
 
     def __init__(self,
-        n_neighbors: int = None,
-        metric: Metric = None,
-        transform: Union[Callable, pdtf.RelationTransform] = None,
+        n_neighbors: Optional[int] = None,
+        metric: Optional[Metric] = None,
+        transform: Optional[Transform] = None,
         verbose: bool = False
         ) -> None:
 
@@ -213,7 +213,7 @@ class NeighborBasedPDist(Relations):
         self.metric = metric
     
     def compute_relations(self,
-        X: Tensor = None,
+        X: Optional[Tensor] = None,
         **kwargs
         ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
@@ -299,8 +299,10 @@ class DifferentiablePDist(Relations):
 
     def __init__(self,
         p: float = 2,
-        metric: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
-        transform: Union[Callable, pdtf.RelationTransform] = None,
+        metric: Optional[Callable[
+            [torch.Tensor, torch.Tensor],
+            torch.Tensor]] = None,
+        transform: Optional[Transform] = None
         ) -> None:
 
         super().__init__(
@@ -311,7 +313,7 @@ class DifferentiablePDist(Relations):
         self.metric_p = p
 
     def compute_relations(self,
-        X: Tensor = None,
+        X: Optional[Tensor] = None,
         **kwargs
         ) -> pdreld.RelationData:
         """Calculates the pairwise distances. If :param:`metric` is
