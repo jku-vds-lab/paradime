@@ -1,4 +1,6 @@
 from typing import Tuple, Any
+import functools
+import itertools
 import torch
 import numpy as np
 import scipy.sparse
@@ -135,7 +137,7 @@ class SquareRelationArray(RelationData):
         dim = len(indices)
         indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
         return torch.tensor(
-            self.data[indices[0], indices[1]].reshape(dim, dim)
+            np.reshape(self.data[indices[0], indices[1]], (dim, dim))
         )
 
     def to_square_array(self) -> 'SquareRelationArray':
@@ -158,14 +160,6 @@ class SquareRelationArray(RelationData):
         )
 
     def to_array_tuple(self) -> 'NeighborRelationTuple':
-        # # get indices of off-diagonal elements
-        # ones = np.ones(self.data.shape, dtype=np.int32)
-        # np.fill_diagonal(ones, 0)
-        # i, j = np.where(ones)
-        # return AffinityTuple((
-        #     self.data[i,j].reshape(-1, self.data.shape[0] - 1),
-        #     j.reshape(-1, self.data.shape[0] - 1)
-        # ))
         return NeighborRelationTuple((
             np.tile(
                 np.arange(self.data.shape[0]),
@@ -258,8 +252,11 @@ class TriangularRelationArray(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        #TODO: implement memory-efficient version (GH issue #13)
-        return self.to_square_array().sub(indices)
+        dim = _get_orig_dim(len(self.data))
+        combos = itertools.combinations(indices, 2)
+        return torch.tensor(squareform(np.array(
+            [ self.data[_rowcol_to_triu_index(i, j, dim)] for i, j in combos ]
+        )))
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -311,8 +308,11 @@ class TriangularRelationTensor(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        #TODO: implement memory-efficient version (GH Issue #13)
-        return self.to_square_array().sub(indices)
+        dim = _get_orig_dim(len(self.data))
+        combos = itertools.combinations(indices, 2)
+        return _tensor_squareform(torch.tensor(
+            [ self.data[_rowcol_to_triu_index(i, j, dim)] for i, j in combos ]
+        ))
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -321,7 +321,7 @@ class TriangularRelationTensor(RelationData):
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
         # get dimensions of square matrix
-        d = int(np.ceil(np.sqrt(len(self.data) * 2)))
+        d = _get_orig_dim(len(self.data))
         matrix = torch.zeros((d, d),
             dtype=self.data.dtype,
             device=self.data.device
@@ -370,8 +370,10 @@ class SparseRelationArray(RelationData):
         self.data = rels
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        #TODO: implement memory-efficient version (GH Issue #13)
-        return self.to_square_array().sub(indices)
+        dim = len(indices)
+        indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
+        return torch.tensor(
+            self.data[indices[0], indices[1]]).reshape(dim, dim)
 
     def to_square_array(self) -> 'SquareRelationArray':
         return SquareRelationArray(
@@ -546,3 +548,27 @@ def _is_array_tuple(
             result = True
     
     return result
+
+def _tensor_squareform(t: torch.Tensor) -> torch.Tensor:
+    d = _get_orig_dim(len(t))
+    matrix = torch.zeros((d, d),
+        dtype=t.dtype,
+        device=t.device
+    )
+    a, b = torch.triu_indices(d, d, offset=1)
+    matrix[[a, b]] = t
+    return matrix + matrix.T
+
+@functools.cache
+def _rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
+    if i < j:
+        index = round(i * (dim - 1.5) + j - i**2 * 0.5 - 1)
+        return index
+    elif i > j:
+        return _rowcol_to_triu_index(j, i, dim)
+    else:
+        return -1
+
+@functools.cache
+def _get_orig_dim(len_triu: int) -> int:
+    return int(np.ceil(np.sqrt(len_triu * 2)))
