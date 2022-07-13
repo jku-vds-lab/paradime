@@ -1,4 +1,5 @@
 from datetime import datetime
+from multiprocessing.sharedctypes import Value
 import warnings
 from typing import Union, Callable, Optional
 import torch
@@ -365,5 +366,69 @@ class DifferentiablePDist(Relations):
                     diss + diss.T
                 )
             )
+
+        return self.relations
+
+class DistsFromTo(Relations):
+    """Distances between individual pairs of data points.
+    
+    Args:
+        metric: The distance metric to be used.
+        transform: A single transform or list of transforms
+            to be applied to the relations.
+
+    Attributes:
+        relations: A RelationData instance containing the (possibly
+            transformed) pairwise distances. Available only after
+            calling :meth:`compute_relations`.
+    """
+ 
+    def __init__(self,
+        metric: Optional[Callable[
+            [torch.Tensor, torch.Tensor],
+            torch.Tensor]] = None,
+        transform: Optional[Transform] = None,
+        ) -> None:
+
+        if metric is None:
+            metric = (lambda a, b: torch.norm(a - b, dim=1))
+
+        super().__init__(
+            transform=transform
+        )
+
+        self.metric = metric
+
+    def compute_relations(self,
+        X: Optional[Tensor] = None,
+        **kwargs
+        ) -> pdreld.RelationData:
+        """Calculates the distances.
+
+        Args:
+            X: Input data tensor of shape (2, n, dim), where n is the number
+                of pairs of data points.
+
+        Returns:
+            A RelationData instance containing the (possibly
+            transformed) pairwise distances.
+        """
+
+        if X is None:
+            raise ValueError(
+                'Missing input for non-precomputed relations.'
+            )
+
+        X = pdutils._convert_input_to_torch(X)
+
+        if len(X) != 2 or X[0].shape != X[1].shape:
+            raise ValueError(
+                "Expected input tensor of shape (2, n, dim), where n is the "
+                "number of pairs of data points."
+            )
+
+        self.relations = self._transform(
+            pdreld.FlatRelationTensor(self.metric(X[0], X[1]))
+        )
 
         return self.relations
