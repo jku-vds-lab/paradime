@@ -6,3 +6,6 @@ class RelationsNotComputedError(Exception):
 
 class NoDatasetRegisteredError(Exception):
     """Method of DR instance called before registering a dataset."""
+
+class UnsupportedConfigurationError(Exception):
+    """Combination of parameters and/or objects not supported."""

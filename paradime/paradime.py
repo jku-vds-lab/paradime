@@ -18,16 +18,7 @@ import paradime.models as pdmod
 import paradime.loss as pdloss
 import paradime.utils as pdutils
 import paradime.exceptions as pdexc
-from paradime.types import Tensor
-
-Data = Union[
-    np.ndarray,
-    torch.Tensor,
-    dict[str, Union[
-        np.ndarray,
-        torch.Tensor
-    ]]
-]
+from paradime.types import Tensor, Data
 
 class Dataset(td.Dataset):
 
@@ -127,9 +118,13 @@ class NegSampledEdgeDataset(td.Dataset):
         edge_data = {
             'row': rows,
             'col': cols,
-            'rel': p_simpl,
-            'indices': indices
+            'rel': p_simpl
         }
+
+        edge_data['from_to_data'] = torch.stack((
+            self.dataset.data['data'][rows],
+            self.dataset.data['data'][cols]
+        ))
 
         remaining_data = td.default_collate(
             [ self.dataset[i] for i in indices ]
@@ -163,7 +158,6 @@ def _collate_edge_batch(
     return collated_batch
 
 
-
 class TrainingPhase():
 
     def __init__(self,
@@ -192,6 +186,7 @@ class TrainingPhase():
         self.neg_sampling_rate = neg_sampling_rate
 
         self.loss = loss
+
         self.optimizer = optimizer
         self.learning_rate = learning_rate
         self.report_interval = report_interval
@@ -368,6 +363,14 @@ class ParametricDR():
                 **training_phase.kwargs,
                 **kwargs
             }
+
+        if isinstance(training_phase.loss,
+            (pdloss.RelationLoss, pdloss.CompoundLoss)
+        ):
+            training_phase.loss._check_sampling_and_relations(
+                training_phase.sampling,
+                self.batch_relations
+            )
         
         self.training_phases.append(training_phase)
 
@@ -420,7 +423,7 @@ class ParametricDR():
 
         if training_phase.sampling == 'negative_edge':
             if training_phase.edge_rel_key not in self.global_relation_data:
-                raise ValueError(
+                raise KeyError(
                     f"Global relations {training_phase.edge_rel_key} "
                     "not specified."
                 )

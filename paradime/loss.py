@@ -1,11 +1,12 @@
 import torch
 import uuid
-from typing import Optional
+from typing import Optional, Literal
 
 import paradime.relations as pdrel
 import paradime.relationdata as pdreldata
 import paradime.models as pdmod
 from paradime.types import LossFun, Tensor
+from paradime.exceptions import UnsupportedConfigurationError
 
 class Loss(torch.nn.Module):
 
@@ -46,6 +47,26 @@ class RelationLoss(Loss):
         self.global_relation_key = global_relation_key
         self.batch_relation_key = batch_relation_key
 
+        self._use_from_to = False
+
+    def _check_sampling_and_relations(
+        self,
+        sampling: Literal['standard', 'negative_edge'],
+        batch_relations: dict[str, pdrel.Relations],
+    ) -> None:
+        if isinstance(
+            batch_relations[self.batch_relation_key],
+            pdrel.DistsFromTo
+        ):
+            if sampling == 'negative_edge':
+                self._use_from_to = True
+            else:
+                raise UnsupportedConfigurationError(
+                    "RelationLoss does not support DistsFromTo with "
+                    "'standard' sampling. Consider using 'negative_edge' "
+                    "sampling instead."
+                )
+
     def forward(self,
         model: pdmod.Model,
         hd_relations: dict[str, pdreldata.RelationData],
@@ -53,12 +74,21 @@ class RelationLoss(Loss):
         batch: dict[str, torch.Tensor],
         ) -> torch.Tensor:
 
-        return self.loss_function(
-            hd_relations[self.global_relation_key].sub(batch['indices']),
-            ld_relations[self.batch_relation_key].compute_relations(
-                model.embed(batch['data'])
-            ).data
-        )
+        if self._use_from_to:
+            loss = self.loss_function(
+                batch['rel'],
+                ld_relations[self.batch_relation_key].compute_relations(
+                    batch['from_to_data']
+                ).data
+            )
+        else:
+            loss = self.loss_function(
+                hd_relations[self.global_relation_key].sub(batch['indices']),
+                ld_relations[self.batch_relation_key].compute_relations(
+                    model.embed(batch['data'])
+                ).data
+            )
+        return loss
     
 class ClassificationLoss(Loss):
 
@@ -155,6 +185,18 @@ class CompoundLoss(Loss):
             raise ValueError(
                 "Size mismatch between losses and weights."
             )
+
+    def _check_sampling_and_relations(
+        self,
+        sampling: Literal['standard', 'negative_edge'],
+        batch_relations: dict[str, pdrel.Relations],
+    ) -> None:
+        for loss in self.losses:
+            if isinstance(loss, RelationLoss):
+                loss._check_sampling_and_relations(
+                    sampling,
+                    batch_relations
+                )
         
     def forward(self,
         model: pdmod.Model,

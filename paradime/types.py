@@ -36,3 +36,12 @@ IndexList = Union[
     npt.NDArray[np.integer],
     torch.Tensor
 ]
+
+Data = Union[
+    np.ndarray,
+    torch.Tensor,
+    dict[str, Union[
+        np.ndarray,
+        torch.Tensor
+    ]]
+]
