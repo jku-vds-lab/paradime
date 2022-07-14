@@ -1,10 +1,11 @@
-from typing import Tuple, Any
+from typing import Optional, Literal
 import functools
 import itertools
 import torch
 import numpy as np
 import scipy.sparse
 from scipy.spatial.distance import squareform
+import warnings
 
 from .types import IndexList, Rels
 from .utils import report
@@ -503,20 +504,55 @@ class NeighborRelationTuple(RelationData):
         data: The raw relation data.
     """
 
-    def __init__(self, relations: Tuple[np.ndarray,np.ndarray]) -> None:
+    def __init__(self,
+        relations: tuple[np.ndarray,np.ndarray],
+        sort: Optional[Literal['ascending', 'descending']] = None
+    ) -> None:
 
         if not _is_array_tuple(relations):
             raise ValueError(
                 'Expected tuple of arrays (neighbors, relations).'
             )
 
-        # sort entries by ascending relation values
         neighbors, rels = relations
-        indices = rels.argsort()
-        neighbors = np.take_along_axis(neighbors, indices, axis=1)
-        rels = np.take_along_axis(rels, indices, axis=1)
 
-        self.data = (neighbors, rels)
+        if sort is None:
+            pass
+        elif sort == 'ascending':
+            indices = rels.argsort()
+            neighbors = np.take_along_axis(neighbors, indices, axis=1)
+            rels = np.take_along_axis(rels, indices, axis=1)
+        elif sort == 'descending':
+            indices = rels.argsort()[:,::-1]
+            neighbors = np.take_along_axis(neighbors, indices, axis=1)
+            rels = np.take_along_axis(rels, indices, axis=1)
+        else:
+            raise ValueError(
+                f"Unknown sorting option {sort}. Only None, 'ascending' "
+                "or 'descending are supported."
+            )
+
+        self.data: tuple[np.ndarray, np.ndarray] = (neighbors, rels)
+
+    def _where_self_relations(self) -> np.ndarray:
+        relations = self.data[0]
+        return (relations == np.arange(len(relations))[:, None])
+
+    def _has_all_self_relations(self) -> bool:
+        return bool(np.all(np.any(self._where_self_relations(), axis=1)))
+
+    def _remove_self_relations(self) -> None:
+        if not self._has_all_self_relations():
+            warnings.warn(
+                "Neighbor relation tuple das not include all self-relations. "
+                "Removal would lead to ragged array and is not performed."
+            )
+        else:
+            mask = np.logical_not(self._where_self_relations())
+            self.data = (
+                np.stack([ i[j] for i,j in zip(self.data[0], mask)]),
+                np.stack([ i[j] for i,j in zip(self.data[1], mask)])
+            )
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         return self.to_sparse_array().sub(indices)
@@ -611,7 +647,8 @@ def _is_array_tuple(rels: Rels) -> bool:
     result = False
     if isinstance(rels, tuple) and len(rels) == 2:
         if len(rels[0].shape) == 2 and rels[0].shape == rels[1].shape:
-            result = True    
+            if rels[0].max() < len(rels[0]):
+                result = True
     return result
 
 def _tensor_squareform(t: torch.Tensor) -> torch.Tensor:

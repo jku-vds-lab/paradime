@@ -3,7 +3,7 @@ import torch
 import scipy.optimize
 import scipy.sparse
 from numba import jit
-from typing import TypeVar, overload, Literal, Tuple, Union, Any
+from typing import TypeVar, overload
 
 from paradime import relationdata as pdreld
 from .utils import report
@@ -19,20 +19,15 @@ class RelationTransform():
     def __init__(self):
         pass
 
-    def __call__(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    def __call__(self,reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-        return self.transform(X)
+        return self.transform(reldata)
 
-    def transform(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
         """Applies the transform to input data.
         
         Args:
-            X: A :class:`RelationData` instance or raw input data as
-                accepted by :func:`paradime.relationdata.relation_factory`.
+            reldata: The :class:`RelationData` instance to be transformed.
 
         Returns:
             A :class:`RelationData` instance containing the transformed
@@ -44,14 +39,9 @@ class RelationTransform():
 class Identity(RelationTransform):
     """A placeholder identity transform."""
 
-    def transform(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-        if isinstance(X, pdreld.RelationData):
-            return X
-        else:
-            return pdreld.relation_factory(X)
+        return reldata
 
 class PerplexityBased(RelationTransform):
     """Applies a perplexity-based transformation to the relation values.
@@ -74,7 +64,7 @@ class PerplexityBased(RelationTransform):
         perplexity: float = 30,
         verbose: bool = False,
         **kwargs # passed on to root_scalar
-        ) -> None:
+    ) -> None:
 
         self.perplexity = perplexity
         self.kwargs = kwargs
@@ -85,16 +75,11 @@ class PerplexityBased(RelationTransform):
 
         self.verbose = verbose
 
-    def transform(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-        if isinstance(X, pdreld.RelationData):
-            X = X.to_array_tuple()
-        else:
-            X = pdreld.relation_factory(X).to_array_tuple()
+        X = reldata.to_array_tuple().data
 
-        neighbors = X.data[0][:, 1:]
+        neighbors: np.ndarray = X[0][:, 1:]
         num_pts, k = neighbors.shape
         p_ij = np.empty((num_pts, k), dtype=float)
         self.beta = np.empty(num_pts, dtype=float)
@@ -107,12 +92,12 @@ class PerplexityBased(RelationTransform):
 
         for i in range(num_pts):
             beta = _find_beta(
-                X.data[1][i, 1:],
+                X[1][i, 1:],
                 self.perplexity,
                 **self.kwargs
             )
             self.beta[i] = beta
-            p_ij[i] = _p_i(X.data[1][i, 1:], beta)
+            p_ij[i] = _p_i(X[1][i, 1:], beta)
         
         return pdreld.NeighborRelationTuple((
             neighbors,
@@ -127,10 +112,7 @@ class PerplexityBased(RelationTransform):
         # return prdmad.SparseAffinityArray(p)
 
 @jit
-def _entropy(
-    dists: np.ndarray,
-    beta: float) -> float:
-
+def _entropy(dists: np.ndarray, beta: float) -> float:
     x = - dists**2 * beta
     y = np.exp(x)
     ysum = y.sum()
@@ -144,21 +126,14 @@ def _entropy(
     return result
 
 
-def _p_i(
-    dists: np.ndarray,
-    beta: float) -> np.ndarray:
-
+def _p_i(dists: np.ndarray, beta: float) -> np.ndarray:
     x = - dists**2 * beta
     y = np.exp(x)
     ysum = y.sum()
 
     return y / ysum
 
-def _find_beta(
-    dists: np.ndarray,
-    perp: float,
-    **kwargs
-    ) -> float:
+def _find_beta(dists: np.ndarray, perp: float, **kwargs) -> float:
     return scipy.optimize.root_scalar(
         lambda b: _entropy(dists, b) - np.log2(perp),
         **kwargs
@@ -169,127 +144,123 @@ class Symmetrize(RelationTransform):
     """Symmetrizes the relation values.
     
     Args:
-        impl: Specifies which symmetrization routine to use.
-            Allowed values are `'tsne'` and `'umap'`.
+        subtract_product: Specifies which symmetrization routine to use.
+            If set to false (default), a matrix M is symmetrized by
+            calculating 1/2 * (M + M^T); if set to true, M is symmetrized
+            by calculating M + M^T - M * M^T, where '*' is the element-wise
+            (Hadamard) product.
     """
 
-    def __init__(self, impl: Literal['tsne', 'umap']):
+    def __init__(self, subtract_prodcut: bool = False):
 
-        self.impl = impl
+        self.subtract_product = subtract_prodcut
 
-    def transform(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-        if not isinstance(X, pdreld.RelationData):
-            X = pdreld.relation_factory(X)
-        elif isinstance(X, pdreld.NeighborRelationTuple):
-            X = X.to_sparse_array()
-
-        if self.impl == 'tsne':
-            symmetrizer = _symm_tsne
-        elif self.impl == 'umap':
-            symmetrizer = _symm_umap
+        if isinstance(reldata, (
+            pdreld.TriangularRelationArray,
+            pdreld.TriangularRelationTensor
+        )):
+            return reldata
+        elif isinstance(reldata, (
+            pdreld.FlatRelationArray,
+            pdreld.FlatRelationTensor
+        )):
+            raise ValueError(
+                "Flat list of relations cannot be symmetrized."
+            )
         else:
-            raise ValueError('Expected specifier to be "umap" or "tsne".')
+            if self.subtract_product:
+                symmetrizer = _sym_subtract_product
+            else:
+                symmetrizer = _sym_plus_only 
 
-        X.data = symmetrizer(X.data)
+            if isinstance(reldata, pdreld.NeighborRelationTuple):
+                return symmetrizer(reldata.to_sparse_array())
+            else:
+                return symmetrizer(reldata)
 
-        return X
 
-
-@overload
-def _symm_tsne(p: np.ndarray) -> np.ndarray:
-    ...
-@overload
-def _symm_tsne(p: torch.Tensor) -> torch.Tensor:
-    ...
-@overload
-def _symm_tsne(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
-    ...
-
-def _symm_tsne(p: Tensor) -> Tensor:
-    if isinstance(p, np.ndarray):
-        return 0.5 * (p + p.T)
-    elif isinstance(p, scipy.sparse.spmatrix):
-        return 0.5 * (p + p.transpose())
-    elif isinstance(p, torch.Tensor):
-        return 0.5 * (p + torch.t(p))
+def _sym_plus_only(
+    reldata: pdreld.RelationData
+) -> pdreld.RelationData:
+    if isinstance(reldata, pdreld.SquareRelationArray):
+        reldata.data = (0.5 * (reldata.data + reldata.data.T))
+    elif isinstance(reldata, pdreld.SparseRelationArray):
+        reldata.data = 0.5 * (reldata.data + reldata.data.transpose())
+    elif isinstance(reldata, pdreld.SquareRelationTensor):
+        reldata.data = 0.5 * (reldata.data + torch.t(reldata.data))
     else:
-        raise TypeError('Expected tensor-type argument.')
+        raise TypeError("Expected tensor-type :class:`RelationData`.")
+    return reldata
 
-
-@overload
-def _symm_umap(p: np.ndarray) -> np.ndarray:
-    ...
-@overload
-def _symm_umap(p: torch.Tensor) -> torch.Tensor:
-    ...
-@overload
-def _symm_umap(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
-    ...
-
-def _symm_umap(p: Tensor) -> Tensor:
-    if isinstance(p, np.ndarray):
-        return p + p.T - (p * p.T)
-    elif isinstance(p, scipy.sparse.spmatrix):
-        return p + p.transpose() - (p.multiply(p.transpose()))
-    elif isinstance(p, torch.Tensor):
-        return p + torch.t(p) - (p * torch.t(p))
+def _sym_subtract_product(
+    reldata: pdreld.RelationData
+) -> pdreld.RelationData:
+    if isinstance(reldata, pdreld.SquareRelationArray):
+        reldata.data = (reldata.data + reldata.data.T
+            - reldata.data * reldata.data.T)
+    elif isinstance(reldata, pdreld.SparseRelationArray):
+        reldata.data = (reldata.data + reldata.data.transpose()
+            - reldata.data.multiply(reldata.data.transpose()))
+    elif isinstance(reldata, pdreld.SquareRelationTensor):
+        reldata.data = (reldata.data + torch.t(reldata.data)
+            - reldata.data * torch.t(reldata.data))
     else:
-        raise TypeError('Expected tensor-type argument.')
+        raise TypeError("Expected tensor-type :class:`RelationData`.")
+    return reldata
 
 
 class NormalizeRows(RelationTransform):
     """Normalizes the relation value for each data point separately."""
 
-    def transform(self,
-        X: Union[Rels, pdreld.RelationData]
-        ) -> pdreld.RelationData:
+    #TODO: include code of norm_rows in transform method
+    #TODO: implement norm_rows for neighborhood tuple (easy)
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-        if not isinstance(X, pdreld.RelationData):
-            X = pdreld.relation_factory(X)
-        elif isinstance(X, pdreld.NeighborRelationTuple):
-            X = X.to_sparse_array()
+        if isinstance(reldata, (
+            pdreld.TriangularRelationArray,
+            pdreld.TriangularRelationTensor
+        )):
+            return reldata
+        elif isinstance(reldata, (
+            pdreld.FlatRelationArray,
+            pdreld.FlatRelationTensor
+        )):
+            raise ValueError(
+                "Flat list of relations cannot be normalized."
+            )
+        else:
+            if isinstance(reldata, pdreld.NeighborRelationTuple):
+                return _norm_rows(reldata.to_sparse_array())
+            else:
+                return _norm_rows(reldata)
 
-        X.data = _norm_rows(X.data)
 
-        return X
-
-
-@overload
-def _norm_rows(p: np.ndarray) -> np.ndarray:
-    ...
-@overload
-def _norm_rows(p: torch.Tensor) -> torch.Tensor:
-    ...
-@overload
-def _norm_rows(p: scipy.sparse.spmatrix) -> scipy.sparse.spmatrix:
-    ...
-
-def _norm_rows(p: Tensor) -> Tensor:
-    if isinstance(p, np.ndarray):
-        return p / p.sum(axis=1, keepdims=True)
-    elif isinstance(p, scipy.sparse.spmatrix):
+def _norm_rows(reldata: pdreld.RelationData) -> pdreld.RelationData:
+    if isinstance(reldata, pdreld.SquareRelationArray):
+        reldata.data /= reldata.data.sum(axis=1, keepdims=True)
+    elif isinstance(reldata, pdreld.SparseRelationArray):
         norm_factors = 1/np.repeat(
-            np.array(p.sum(axis=1)),
-            p.getnnz(axis=1)
+            np.array(reldata.data.sum(axis=1)),
+            reldata.data.getnnz(axis=1)
         )
-        return scipy.sparse.csr_matrix((
+        reldata.data = scipy.sparse.csr_matrix((
             norm_factors,
-            p.nonzero()
-        )).multiply(p)
-    elif isinstance(p, torch.Tensor):
-        return p / p.sum(dim=1, keepdim=True)
+            reldata.data.nonzero()
+        )).multiply(reldata.data)
+    elif isinstance(reldata, pdreld.SquareRelationTensor):
+        reldata.data /= reldata.data.sum(dim=1, keepdim=True)
     else:
         raise TypeError('Expected tensor-type argument.')
+    return reldata
 
-
+#TODO: rewrite like other methods
 class Normalize(RelationTransform):
     """Normalizes all relations."""
 
     def transform(self,
-        X: Union[Rels, pdreld.RelationData]
+        reldat: pdreld.RelationData
         ) -> pdreld.RelationData:
 
         if not isinstance(X, pdreld.RelationData):
