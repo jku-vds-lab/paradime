@@ -1,12 +1,13 @@
+from ipykernel import kernel_protocol_version
 import numpy as np
 import torch
 import scipy.optimize
 import scipy.sparse
 from numba import jit
-from typing import TypeVar, overload
+from typing import Callable, Protocol, Union, Optional, Any
 
 from paradime import relationdata as pdreld
-from .utils import report
+from paradime import utils as pdutils
 from .types import Tensor, Rels
 
 
@@ -36,14 +37,149 @@ class RelationTransform():
 
         raise NotImplementedError()
 
+
 class Identity(RelationTransform):
     """A placeholder identity transform."""
 
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-
         return reldata
 
-class PerplexityBased(RelationTransform):
+
+class ToSquareArray(RelationTransform):
+    """Converts the relation data to square array format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_square_array()
+
+
+class ToSquareTensor(RelationTransform):
+    """Converts the relation data to square tensor format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_square_tensor()
+
+
+class ToTriangularArray(RelationTransform):
+    """Converts the relation data to triangular array format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_triangular_array()
+
+
+class ToTriangularTensor(RelationTransform):
+    """Converts the relation data to triangular tensor format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_triangular_tensor()
+
+
+class ToSparseArray(RelationTransform):
+    """Converts the relation data to sparse array format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_sparse_array()
+
+
+class ToNeighborTuple(RelationTransform):
+    """Converts the relation data to neighbor tuple format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_neighbor_tuple()
+
+
+class ToFlatArray(RelationTransform):
+    """Converts the relation data to flat array format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_flat_array()
+
+
+class ToFlatTensor(RelationTransform):
+    """Converts the relation data to flat tensor format."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_flat_tensor()
+
+
+class AdaptiveNeighborhoodRescale(RelationTransform):
+    """Rescales relation values for each data point based on its neighbors.
+    
+    This is a base class for transformations such as those used by t-SNE
+    or UMAP. For each data point, a parameter is fitted by comparing
+    kernel-transformed relations to a target value. Once the parameter
+    value is found, the kernel function is used to transform the relations.
+
+    Args:
+        kernel: The kernel function used to transform the relations. This 
+            is a callable taking the relation values for a data point,
+            along with a parameter.
+        find_param: The function used to find the parameter value. This is a 
+            callable taking the relation values and a fixed value to compare
+            the transformed relations against.
+        verbose: Verbosity toggle.
+
+    Attributes:
+        param_values: The parameter values determined for each data point.
+            Available only after calling the transform.
+    """
+
+    def __init__(self,
+        kernel: Callable[[np.ndarray, float], Union[float, np.ndarray]],
+        find_param: Callable[..., float],
+        verbose: bool = False,
+        **kwargs
+    ) -> None:
+        self.kernel = kernel
+        self.find_param = find_param
+        self.verbose = verbose
+        self.kwargs = kwargs
+
+        self._param_values: Optional[np.ndarray] = None
+
+    @property
+    def param_values(self) -> np.ndarray:
+        if self._param_values is not None:
+            return self._param_values
+        else:
+            raise AttributeError(
+                "Parameter values only available after calling transform."
+            )
+
+    def _set_root_scalar_defaults(self) -> None:
+        raise NotImplementedError()
+
+    def _get_comparison_constant(self) -> float:
+        raise NotImplementedError()
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+
+        reldata = reldata.to_neighbor_tuple()
+        reldata._remove_self_relations()
+
+        self._set_root_scalar_defaults()
+
+        neighbors, relations = reldata.data
+        num_pts = len(neighbors)
+        self._param_values = np.empty(num_pts, dtype=float)
+
+        if self.verbose:
+            pdutils.report('Calculating probabilities.')
+
+        for i, rels in enumerate(relations):
+            beta = self.find_param(
+                rels,
+                self._get_comparison_constant(),
+                **self.kwargs
+            )
+            self._param_values[i] = beta
+            relations[i] = self.kernel(rels, beta)
+
+        reldata.data = (neighbors, relations)
+        
+        return reldata
+
+
+class PerplexityBasedRescale(AdaptiveNeighborhoodRescale):
     """Applies a perplexity-based transformation to the relation values.
 
     The relation values are rescaled using Guassian kernels. For each data
@@ -65,51 +201,50 @@ class PerplexityBased(RelationTransform):
         verbose: bool = False,
         **kwargs # passed on to root_scalar
     ) -> None:
+        super().__init__(
+            _p_i,
+            _find_beta,
+            verbose=verbose,
+            **kwargs
+        )
 
         self.perplexity = perplexity
-        self.kwargs = kwargs
+
+    @property
+    def betas(self) -> np.ndarray:
+        return self.param_values
+
+    def _get_comparison_constant(self) -> float:
+        return self.perplexity
+        
+    def _set_root_scalar_defaults(self) -> None:
         if not self.kwargs: # check if emtpy
-            # self.kwargs['x0'] = 0.1
-            # self.kwargs['x1'] = 1.0
             self.kwargs['bracket'] = [0.01, 1.]
 
-        self.verbose = verbose
+    # def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    #     reldata = reldata.to_array_tuple()
+    #     reldata._remove_self_relations()
 
-        X = reldata.to_array_tuple().data
+    #     neighbors, relations = reldata.data
+    #     num_pts = len(neighbors)
+    #     self.beta = np.empty(num_pts, dtype=float)
 
-        neighbors: np.ndarray = X[0][:, 1:]
-        num_pts, k = neighbors.shape
-        p_ij = np.empty((num_pts, k), dtype=float)
-        self.beta = np.empty(num_pts, dtype=float)
+    #     if self.verbose:
+    #         pdutils.report('Calculating probabilities.')
 
-        # TODO: think about what should happen if relations
-        #       do not include r(x_i, x_i) = 0
+    #     for i, rels in enumerate(relations):
+    #         beta = _find_beta(
+    #             rels,
+    #             self.perplexity,
+    #             **self.kwargs
+    #         )
+    #         self.beta[i] = beta
+    #         relations[i] = _p_i(rels, beta)
 
-        if self.verbose:
-            report('Calculating probabilities.')
-
-        for i in range(num_pts):
-            beta = _find_beta(
-                X[1][i, 1:],
-                self.perplexity,
-                **self.kwargs
-            )
-            self.beta[i] = beta
-            p_ij[i] = _p_i(X[1][i, 1:], beta)
+    #     reldata.data = (neighbors, relations)
         
-        return pdreld.NeighborRelationTuple((
-            neighbors,
-            p_ij
-        ))
-        # row_indices = np.repeat(np.arange(num_pts), k-1)
-        # p = scipy.sparse.csr_matrix((
-        #     p_ij.ravel(),
-        #     (row_indices, neighbors.ravel())
-        # ))
-
-        # return prdmad.SparseAffinityArray(p)
+    #     return reldata
 
 @jit
 def _entropy(dists: np.ndarray, beta: float) -> float:
@@ -125,7 +260,6 @@ def _entropy(dists: np.ndarray, beta: float) -> float:
     
     return result
 
-
 def _p_i(dists: np.ndarray, beta: float) -> np.ndarray:
     x = - dists**2 * beta
     y = np.exp(x)
@@ -136,6 +270,85 @@ def _p_i(dists: np.ndarray, beta: float) -> np.ndarray:
 def _find_beta(dists: np.ndarray, perp: float, **kwargs) -> float:
     return scipy.optimize.root_scalar(
         lambda b: _entropy(dists, b) - np.log2(perp),
+        **kwargs
+    ).root
+
+
+class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
+    """Applies a connectivity-based transformation to the relation values.
+
+    The relation values are rescaled using shifted Guassian kernels. The
+    shift is equal to the closes neighboring data point, and the kernel
+    width is set by by comparing the summed kernel values to the binary
+    logarithm of the specified number of neighbors. This is the relation
+    transform used by UMAP.
+
+    Args:
+        n_neighbors: The number of nearest neighbors used to determine the
+            kernel widths.
+        verbose: Verbosity toggle.
+        **kwargs: Passed on to :func:`scipy.optimize.root_scalar`, which
+            determines the kernel widths. By default, this is set to use a
+            bracket of [10^(-6), 10^6] for the root search.    
+    """
+    
+    def __init__(self,
+        n_neighbors: float = 15,
+        verbose: bool = False,
+        **kwargs # passed on to root_scalar
+    ) -> None:
+        super().__init__(
+            _exp_k,
+            _find_sigma,
+            verbose=verbose,
+            **kwargs
+        )
+
+        self.n_neighbors = n_neighbors
+
+    @property
+    def sigmas(self) -> np.ndarray:
+        return self.param_values
+
+    def _get_comparison_constant(self) -> float:
+        return self.n_neighbors
+        
+    def _set_root_scalar_defaults(self) -> None:
+        if not self.kwargs: # check if emtpy
+            self.kwargs['bracket'] = [1.e-6, 1.e6]
+
+    # def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+
+    #     reldata = reldata.to_array_tuple()
+    #     reldata._remove_self_relations()
+
+    #     neighbors, relations = reldata.data
+    #     num_pts = len(neighbors)
+    #     self.sigmas = np.empty(num_pts, dtype=float)
+
+    #     if self.verbose:
+    #         pdutils.report('Calculating probabilities.')
+
+    #     for i, rels in enumerate(relations):
+    #         sigma = _find_sigma(
+    #             rels,
+    #             self.n_neighbors,
+    #             **self.kwargs
+    #         )
+    #         self.sigmas[i] = sigma
+    #         relations[i] = _exp_k(rels, sigma)
+
+    #     reldata.data = (neighbors, relations)
+        
+    #     return reldata
+
+def _exp_k(dists: np.ndarray, sigma: float) -> np.ndarray:
+    x = dists - dists.min()
+    return np.exp(- x / sigma)
+
+def _find_sigma(dists: np.ndarray, k: int, **kwargs) -> float:
+    return scipy.optimize.root_scalar(
+        lambda s: _exp_k(dists, s).sum() - np.log2(float(k)),
         **kwargs
     ).root
 
@@ -162,13 +375,6 @@ class Symmetrize(RelationTransform):
             pdreld.TriangularRelationTensor
         )):
             return reldata
-        elif isinstance(reldata, (
-            pdreld.FlatRelationArray,
-            pdreld.FlatRelationTensor
-        )):
-            raise ValueError(
-                "Flat list of relations cannot be symmetrized."
-            )
         else:
             if self.subtract_product:
                 symmetrizer = _sym_subtract_product
@@ -191,7 +397,7 @@ def _sym_plus_only(
     elif isinstance(reldata, pdreld.SquareRelationTensor):
         reldata.data = 0.5 * (reldata.data + torch.t(reldata.data))
     else:
-        raise TypeError("Expected tensor-type :class:`RelationData`.")
+        raise TypeError("Expected non-flat :class:`RelationData`.")
     return reldata
 
 def _sym_subtract_product(
@@ -207,15 +413,72 @@ def _sym_subtract_product(
         reldata.data = (reldata.data + torch.t(reldata.data)
             - reldata.data * torch.t(reldata.data))
     else:
-        raise TypeError("Expected tensor-type :class:`RelationData`.")
+        raise TypeError("Expected non-flat :class:`RelationData`.")
     return reldata
 
 
 class NormalizeRows(RelationTransform):
-    """Normalizes the relation value for each data point separately."""
+    """Normalizes the relation values for each data point separately."""
 
-    #TODO: include code of norm_rows in transform method
-    #TODO: implement norm_rows for neighborhood tuple (easy)
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+
+        if isinstance(reldata, pdreld.TriangularRelationArray):
+            reldata = reldata.to_square_array()
+            reldata.data /= reldata.data.sum(axis=1, keepdims=True)
+        elif isinstance(reldata, pdreld.TriangularRelationTensor):
+            reldata = reldata.to_square_tensor()
+            reldata.data /= reldata.data.sum(dim=1, keepdim=True)
+        elif isinstance(reldata, pdreld.SquareRelationArray):
+            reldata.data /= reldata.data.sum(axis=1, keepdims=True)
+        elif isinstance(reldata, pdreld.SquareRelationTensor):
+            reldata.data /= reldata.data.sum(dim=1, keepdim=True)
+        elif isinstance(reldata, pdreld.SparseRelationArray):
+            norm_factors = 1 / np.repeat(
+                np.array(reldata.data.sum(axis=1)),
+                reldata.data.getnnz(axis=1)
+            )
+            reldata.data = scipy.sparse.csr_matrix((
+                norm_factors,
+                reldata.data.nonzero()
+            )).multiply(reldata.data)
+        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+            neighbors, relations = reldata.data
+            reldata.data = (neighbors,
+                relations / relations.sum(axis=1, keepdims=True))
+        else:
+            raise TypeError("Expected non-flat :class:`RelationData`.")
+        return reldata
+
+
+class Normalize(RelationTransform):
+    """Normalizes the relation values for each data point separately."""
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+
+        if isinstance(reldata, (
+            pdreld.TriangularRelationArray,
+            pdreld.TriangularRelationTensor
+        )):
+            reldata.data /= 2 * reldata.data.sum()
+        elif isinstance(reldata, (
+            pdreld.SquareRelationArray,
+            pdreld.SquareRelationTensor,
+            pdreld.SparseRelationArray,
+            pdreld.FlatRelationTensor,
+            pdreld.FlatRelationArray
+        )):
+            reldata.data /= reldata.data.sum()
+        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+            neighbors, relations = reldata.data
+            reldata.data = (neighbors, relations / relations.sum())
+        else:
+            raise TypeError("Expected :class:`RelationData`.")
+        return reldata
+
+
+class ZeroDiagonal(RelationTransform):
+    """Sets all self-relations to zero."""
+
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
         if isinstance(reldata, (
@@ -223,51 +486,14 @@ class NormalizeRows(RelationTransform):
             pdreld.TriangularRelationTensor
         )):
             return reldata
-        elif isinstance(reldata, (
-            pdreld.FlatRelationArray,
-            pdreld.FlatRelationTensor
-        )):
-            raise ValueError(
-                "Flat list of relations cannot be normalized."
-            )
+        elif isinstance(reldata, pdreld.SquareRelationArray):
+            np.fill_diagonal(reldata.data, 0.)
+        elif isinstance(reldata, pdreld.SquareRelationTensor):
+            reldata.data.fill_diagonal_(0.)
+        elif isinstance(reldata, pdreld.SparseRelationArray):
+            reldata.data.setdiag(0.)
+        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+            reldata._remove_self_relations()
         else:
-            if isinstance(reldata, pdreld.NeighborRelationTuple):
-                return _norm_rows(reldata.to_sparse_array())
-            else:
-                return _norm_rows(reldata)
-
-
-def _norm_rows(reldata: pdreld.RelationData) -> pdreld.RelationData:
-    if isinstance(reldata, pdreld.SquareRelationArray):
-        reldata.data /= reldata.data.sum(axis=1, keepdims=True)
-    elif isinstance(reldata, pdreld.SparseRelationArray):
-        norm_factors = 1/np.repeat(
-            np.array(reldata.data.sum(axis=1)),
-            reldata.data.getnnz(axis=1)
-        )
-        reldata.data = scipy.sparse.csr_matrix((
-            norm_factors,
-            reldata.data.nonzero()
-        )).multiply(reldata.data)
-    elif isinstance(reldata, pdreld.SquareRelationTensor):
-        reldata.data /= reldata.data.sum(dim=1, keepdim=True)
-    else:
-        raise TypeError('Expected tensor-type argument.')
-    return reldata
-
-#TODO: rewrite like other methods
-class Normalize(RelationTransform):
-    """Normalizes all relations."""
-
-    def transform(self,
-        reldat: pdreld.RelationData
-        ) -> pdreld.RelationData:
-
-        if not isinstance(X, pdreld.RelationData):
-            X = pdreld.relation_factory(X)
-        elif isinstance(X, pdreld.NeighborRelationTuple):
-            X = X.to_sparse_array()
-
-        X.data = X.data / X.data.sum()
-
-        return X
+            raise TypeError("Expected non-flat :class:`RelationData`.")
+        return reldata

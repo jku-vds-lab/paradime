@@ -15,17 +15,9 @@ import paradime.utils as pdutils
 
 from .types import Metric, Tensor, Rels
 
-SingleTransform = Union[
-        Callable[
-            [pdreld.RelationData],
-            pdreld.RelationData
-        ],
-        pdtf.RelationTransform
-    ]
-
 Transform = Union[    
-    SingleTransform,
-    list[SingleTransform]
+    pdtf.RelationTransform,
+    list[pdtf.RelationTransform]
 ]
 
 class Relations():
@@ -212,6 +204,45 @@ class NeighborBasedPDist(Relations):
         self.n_neighbors = n_neighbors
         self.verbose = verbose
         self.metric = metric
+
+    def _set_n_neighbors(self, num_pts: int) -> None:
+        # get highest parameters of any perplexity- or
+        # connectivity-based transforms
+        perp = 0.
+        n_nb = 0.
+        if self.transform is not None:
+            for tf in self.transform:
+                if isinstance(tf, pdtf.PerplexityBasedRescale):
+                    perp = max(perp, tf.perplexity)
+                elif isinstance(tf, pdtf.ConnectivityBasedRescale):
+                    n_nb = max(n_nb, tf.n_neighbors)
+
+        # set number of neighbors according to highest
+        # perplexity/n_neighbors found, or to reasonable default
+        if self.n_neighbors is None:
+            if perp == 0. and n_nb == 0.:
+                self.n_neighbors = int(0.05 * num_pts)
+            else:
+                self.n_neighbors = int(min(num_pts - 1, max(3 * perp, n_nb)))
+        else:
+            if self.n_neighbors >= 3 * perp and self.n_neighbors >= n_nb:
+                self.n_neighbors = min(num_pts - 1, self.n_neighbors)
+            elif ((self.n_neighbors < 3 * perp or self.n_neighbors < n_nb) and
+                3 * perp > n_nb):
+                warnings.warn(
+                    f"Number of neighbors {self.n_neighbors} too small for "
+                    f"highest perplexity {perp} found in transforms. Using "
+                    f"{3 * perp} neighbors (threefold perplexity) instead."
+                )
+                self.n_neighbors = int(min(num_pts - 1, 3 * perp))
+            elif ((self.n_neighbors < 3 * perp or self.n_neighbors < n_nb) and
+                3 * perp <= n_nb):
+                warnings.warn(
+                    f"Number of neighbors {self.n_neighbors} too small for "
+                    f"highest 'n_neighbors' {n_nb} found in transforms. "
+                    f"Using {n_nb} neighbors instead."
+                )
+                self.n_neighbors = int(min(num_pts - 1, n_nb))
     
     def compute_relations(self,
         X: Optional[Tensor] = None,
@@ -234,31 +265,8 @@ class NeighborBasedPDist(Relations):
 
         X = pdutils._convert_input_to_numpy(X)
 
-        num_pts = X.shape[0]
-
-        # get highest perplexity of any PerplexityBased transforms
-        perp = 0.
-        if self.transform is not None:
-            for tf in self.transform:
-                if isinstance(tf, pdtf.PerplexityBased):
-                    perp = max(perp, tf.perplexity)
-
-        # set number of neighbors according to highest
-        # perplexity found, or to reasonable default
-        if self.n_neighbors is None:
-            if perp == 0:
-                self.n_neighbors = int(0.05 * num_pts)
-            else:
-                self.n_neighbors = int(min(num_pts - 1, 3 * perp))
-        else:
-            if self.n_neighbors > 3 * perp:
-                self.n_neighbors = min(num_pts - 1, self.n_neighbors)
-            elif self.n_neighbors < 3 * perp:
-                warnings.warn(
-                    f'Number of neighbors {self.n_neighbors} too small.' +
-                    f'Using 3 * perplexity {perp} = {3 * perp} instead.'
-                )
-                self.n_neighbors = int(min(num_pts - 1, 3 * perp))
+        self._set_n_neighbors(X.shape[0])
+        assert self.n_neighbors is not None
         
         if self.verbose:
             pdutils.report('Indexing nearest neighbors.')
@@ -268,12 +276,12 @@ class NeighborBasedPDist(Relations):
         
         index = NNDescent(X,
             n_neighbors=self.n_neighbors + 1,
-            metric = self.metric
+            metric=self.metric
         )
         neighbors, distances = index.neighbor_graph
 
         self.relations = self._transform(
-            pdreld.relation_factory(
+            pdreld.NeighborRelationTuple(
                 (neighbors, distances)
             )
         )

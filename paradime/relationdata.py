@@ -1,5 +1,4 @@
 from typing import Optional, Literal
-import functools
 import itertools
 import torch
 import numpy as np
@@ -7,8 +6,8 @@ import scipy.sparse
 from scipy.spatial.distance import squareform
 import warnings
 
+import paradime.utils as pdutils
 from .types import IndexList, Rels
-from .utils import report
 
 class RelationData():
     """Base class for storing relations between data points."""
@@ -97,7 +96,7 @@ class RelationData():
             f"implemented for {type(self).__name__}."
         )
     
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
         """Converts the relations to a :class:`NeighborRelationTuple`.
         
         Returns:
@@ -254,7 +253,7 @@ class SquareRelationArray(RelationData):
             scipy.sparse.csr_matrix(self.data)
         )
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
         return NeighborRelationTuple((
             np.tile(
                 np.arange(self.data.shape[0]),
@@ -311,7 +310,7 @@ class SquareRelationTensor(RelationData):
             scipy.sparse.csr_matrix(self.data.detach().numpy())
         )
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
         rels = self.data.detach().numpy()
         return NeighborRelationTuple((
             np.tile(
@@ -343,10 +342,11 @@ class TriangularRelationArray(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        dim = _get_orig_dim(len(self.data))
+        dim = pdutils._get_orig_dim(len(self.data))
         combos = itertools.combinations(indices, 2)
         return torch.tensor(squareform(np.array(
-            [ self.data[_rowcol_to_triu_index(i, j, dim)] for i, j in combos ]
+            [ self.data[pdutils._rowcol_to_triu_index(
+                i, j, dim)] for i, j in combos ]
         )))
 
     def to_square_array(self) -> 'SquareRelationArray':
@@ -372,8 +372,8 @@ class TriangularRelationArray(RelationData):
             scipy.sparse.csr_matrix(squareform(self.data))
         )
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
-        return self.to_square_array().to_array_tuple()
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
+        return self.to_square_array().to_neighbor_tuple()
 
 
 class TriangularRelationTensor(RelationData):
@@ -397,10 +397,11 @@ class TriangularRelationTensor(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        dim = _get_orig_dim(len(self.data))
+        dim = pdutils._get_orig_dim(len(self.data))
         combos = itertools.combinations(indices, 2)
         return _tensor_squareform(torch.tensor(
-            [ self.data[_rowcol_to_triu_index(i, j, dim)] for i, j in combos ]
+            [ self.data[pdutils._rowcol_to_triu_index(
+                i, j, dim)] for i, j in combos ]
         ))
 
     def to_square_array(self) -> 'SquareRelationArray':
@@ -410,7 +411,7 @@ class TriangularRelationTensor(RelationData):
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
         # get dimensions of square matrix
-        d = _get_orig_dim(len(self.data))
+        d = pdutils._get_orig_dim(len(self.data))
         matrix = torch.zeros((d, d),
             dtype=self.data.dtype,
             device=self.data.device
@@ -433,8 +434,8 @@ class TriangularRelationTensor(RelationData):
     def to_sparse_array(self) -> 'SparseRelationArray':
         return self.to_triangular_array().to_sparse_array()
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
-        return self.to_square_array().to_array_tuple()
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
+        return self.to_square_array().to_neighbor_tuple()
 
 
 class SparseRelationArray(RelationData):
@@ -487,8 +488,8 @@ class SparseRelationArray(RelationData):
     def to_sparse_array(self) -> 'SparseRelationArray':
         return self
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
-        return self.to_square_array().to_array_tuple()
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
+        return self.to_square_array().to_neighbor_tuple()
 
 
 class NeighborRelationTuple(RelationData):
@@ -581,7 +582,7 @@ class NeighborRelationTuple(RelationData):
         ))
         return SparseRelationArray(matrix)
 
-    def to_array_tuple(self) -> 'NeighborRelationTuple':
+    def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
         return self
 
 
@@ -652,7 +653,7 @@ def _is_array_tuple(rels: Rels) -> bool:
     return result
 
 def _tensor_squareform(t: torch.Tensor) -> torch.Tensor:
-    d = _get_orig_dim(len(t))
+    d = pdutils._get_orig_dim(len(t))
     matrix = torch.zeros((d, d),
         dtype=t.dtype,
         device=t.device
@@ -661,16 +662,3 @@ def _tensor_squareform(t: torch.Tensor) -> torch.Tensor:
     matrix[[a, b]] = t
     return matrix + matrix.T
 
-@functools.cache
-def _rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
-    if i < j:
-        index = round(i * (dim - 1.5) + j - i**2 * 0.5 - 1)
-        return index
-    elif i > j:
-        return _rowcol_to_triu_index(j, i, dim)
-    else:
-        return -1
-
-@functools.cache
-def _get_orig_dim(len_triu: int) -> int:
-    return int(np.ceil(np.sqrt(len_triu * 2)))
