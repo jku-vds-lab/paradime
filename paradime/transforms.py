@@ -1,10 +1,10 @@
-from ipykernel import kernel_protocol_version
 import numpy as np
 import torch
 import scipy.optimize
 import scipy.sparse
 from numba import jit
-from typing import Callable, Protocol, Union, Optional, Any
+import functools
+from typing import Callable, Union, Optional, Any
 
 from paradime import relationdata as pdreld
 from paradime import utils as pdutils
@@ -16,9 +16,6 @@ class RelationTransform():
     
     Custom transforms should subclass this class.
     """
-
-    def __init__(self):
-        pass
 
     def __call__(self,reldata: pdreld.RelationData) -> pdreld.RelationData:
 
@@ -129,6 +126,8 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         verbose: bool = False,
         **kwargs
     ) -> None:
+        super().__init__()
+
         self.kernel = kernel
         self.find_param = find_param
         self.verbose = verbose
@@ -365,7 +364,7 @@ class Symmetrize(RelationTransform):
     """
 
     def __init__(self, subtract_prodcut: bool = False):
-
+        super().__init__()
         self.subtract_product = subtract_prodcut
 
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
@@ -465,7 +464,7 @@ class Normalize(RelationTransform):
             pdreld.SquareRelationTensor,
             pdreld.SparseRelationArray,
             pdreld.FlatRelationTensor,
-            pdreld.FlatRelationArray
+            pdreld.FlatRelationArray,
         )):
             reldata.data /= reldata.data.sum()
         elif isinstance(reldata, pdreld.NeighborRelationTuple):
@@ -483,7 +482,7 @@ class ZeroDiagonal(RelationTransform):
 
         if isinstance(reldata, (
             pdreld.TriangularRelationArray,
-            pdreld.TriangularRelationTensor
+            pdreld.TriangularRelationTensor,
         )):
             return reldata
         elif isinstance(reldata, pdreld.SquareRelationArray):
@@ -497,3 +496,131 @@ class ZeroDiagonal(RelationTransform):
         else:
             raise TypeError("Expected non-flat :class:`RelationData`.")
         return reldata
+
+
+class StudentTTransform(RelationTransform):
+    """Transforms relations based on Student's t-distribution.
+    
+    Args:
+        alpha: Degrees of freedom of the distribution. This can either be
+            a float or a PyTorch tensor. Alpha can be optimized together
+            with the DR model in a :class:`ParametricDR` by setting it to
+            one of the model's additional parameters.
+    """
+
+    def __init__(self, alpha: Union[float, torch.Tensor]) -> None:
+        self.alpha = alpha
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        
+        if isinstance(reldata, (
+            pdreld.SquareRelationTensor,
+            pdreld.TriangularRelationTensor,
+            pdreld.FlatRelationTensor,
+        )):
+            reldata.data = reldata.data.pow(2.)
+            reldata.data = torch.pow(
+                1. + reldata.data / self.alpha,
+                - (self.alpha + 1.) / 2.
+            )
+        elif isinstance(reldata, (
+            pdreld.SquareRelationArray,
+            pdreld.TriangularRelationArray,
+            pdreld.FlatRelationArray,
+        )):
+            reldata.data = np.power(
+                1. + reldata.data**2. / self.alpha,
+                - (self.alpha + 1.) / 2.
+            )
+        elif isinstance(reldata, pdreld.SparseRelationArray):
+            return self.transform(reldata.to_square_array())
+        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+            neighbors, rels = reldata.data
+            rels = np.power(
+                1. + rels**2. / self.alpha,
+                - (self.alpha + 1.) / 2.
+            )
+            reldata.data = (neighbors, rels)
+        else:
+            raise TypeError("Expected :class:`RelationData`.")
+        return reldata
+
+
+class ModifiedCauchyTransform(RelationTransform):
+    """Transforms relations based on a modified Cauchy distribution.
+
+    This trnaforms applies a modified Cauchy distribution function
+    to the relations. The distribution's parameters :param:`a` and
+    :param:`b` are determined from the more easily imaginable parameters
+    :param:`min_dist` and :param:`spread` by fittin a smooth
+    approximation to an offset exponential decay.
+    
+    Args:
+        min_dist: Effective minimum distance of points if the transformed
+            relations were to be used for calculating an embedding.
+        spread: Effective scale of the points if the tranformed relations
+            were to be used for calculating an embedding.
+        a: Parameter to define the distribution directly. It can be optimized
+            together with the DR model in a :class:`ParametricDR` by setting
+            it to one of the model's additional parameters.
+        b: Parameter to define the distribution directly. It can be optimized
+            together with the DR model in a :class:`ParametricDR` by setting
+            it to one of the model's additional parameters.
+    """
+
+    def __init__(self,
+        min_dist: float = 0.1,
+        spread: float = 1.0,
+        a: Optional[Union[float, torch.Tensor]] = None,
+        b: Optional[Union[float, torch.Tensor]] = None
+    ) -> None:
+        self.min_dist = min_dist
+        self.spread = spread
+
+        self.a: Union[float, torch.Tensor]
+        self.b: Union[float, torch.Tensor]
+        
+        if a is None or b is None:
+            self.a, self.b = _find_ab_params(self.spread, self.min_dist)
+        if a is not None:
+            self.a = a
+        if b is not None:
+            self.b = b
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        
+        if isinstance(reldata, (
+            pdreld.SquareRelationTensor,
+            pdreld.TriangularRelationTensor,
+            pdreld.FlatRelationTensor,
+        )):
+            reldata.data = reldata.data.pow(2. * self.b)
+            reldata.data = torch.pow(1. + self.a * reldata.data, -1.)
+        elif isinstance(reldata, (
+            pdreld.SquareRelationArray,
+            pdreld.TriangularRelationArray,
+            pdreld.FlatRelationArray,
+        )):
+            reldata.data = np.power(1. + reldata.data**(2. * self.b), -1.)
+        elif isinstance(reldata, pdreld.SparseRelationArray):
+            return self.transform(reldata.to_square_array())
+        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+            neighbors, rels = reldata.data
+            rels = np.power(1. + rels**(2. * self.b), -1.)
+            reldata.data = (neighbors, rels)
+        else:
+            raise TypeError("Expected :class:`RelationData`.")
+        return reldata
+
+@functools.cache
+def _find_ab_params(spread: float, min_dist: float) -> tuple[float, float]:
+
+    def curve(x, a, b):
+        return 1.0 / (1.0 + a * x ** (2 * b))
+
+    xv = np.linspace(0, spread * 3, 300)
+    yv = np.zeros(xv.shape)
+    yv[xv < min_dist] = 1.0
+    yv[xv >= min_dist] = np.exp(-(xv[xv >= min_dist] - min_dist) / spread)
+    params, _ = scipy.optimize.curve_fit(curve, xv, yv)
+    return params[0], params[1]
