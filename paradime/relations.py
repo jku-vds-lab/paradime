@@ -381,12 +381,13 @@ class DifferentiablePDist(Relations):
         else:
             n = X.shape[0]
             diss_cond = F.pdist(X, p=self.metric_p)
-            diss = torch.zeros((n, n), device = X.device)
-            i, j = torch.triu_indices(n, n, offset=1)
-            diss[[i, j]] = diss_cond
+            # diss = torch.zeros((n, n), device = X.device)
+            # i, j = torch.triu_indices(n, n, offset=1)
+            # diss[[i, j]] = diss_cond
             self.relations = self._transform(
-                pdreld.SquareRelationTensor(
-                    diss + diss.T
+                pdreld.TriangularRelationTensor(
+                    diss_cond
+                    # diss + diss.T
                 )
             )
 

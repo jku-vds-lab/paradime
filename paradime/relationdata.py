@@ -199,7 +199,7 @@ class FlatRelationTensor(RelationData):
 
     def __init__(self, relations: torch.Tensor) -> None:
 
-        if not _is_flat_array(relations):
+        if not _is_flat_tensor(relations):
             raise ValueError('Expected vector-form tensor.')
 
         self.data = relations
@@ -229,6 +229,8 @@ class SquareRelationArray(RelationData):
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
+        if isinstance(indices, torch.Tensor):
+            indices = indices.detach().cpu().numpy()
         indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
         return torch.tensor(
             np.reshape(self.data[indices[0], indices[1]], (dim, dim))
@@ -282,6 +284,8 @@ class SquareRelationTensor(RelationData):
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
+        if isinstance(indices, torch.Tensor):
+            indices = indices.detach().cpu().numpy()
         indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
         return self.data[indices[0], indices[1]].reshape(dim, dim)
 
@@ -459,6 +463,8 @@ class SparseRelationArray(RelationData):
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
+        if isinstance(indices, torch.Tensor):
+            indices = indices.detach().cpu().numpy()
         indices = np.array(np.meshgrid(indices, indices)).T.reshape(-1,2).T
         return torch.tensor(
             self.data[indices[0], indices[1]]).reshape(dim, dim)
@@ -602,24 +608,22 @@ def _is_square_tensor(rels: Rels) -> bool:
 
 def _is_triangular_array(rels: Rels) -> bool:
     result = False
-    if isinstance(rels, np.ndarray) and len(rels.shape) == 1:
-        try:
-            squareform(rels)
-        except:
-            pass
-        else:
-            result = True    
+    if isinstance(rels, np.ndarray):
+        s = rels.shape
+        if len(s) == 1:
+            d = int(np.ceil(np.sqrt(s[0] * 2)))
+            if d * (d - 1) == s[0] * 2:
+                result = True
     return result
 
 def _is_triangular_tensor(rels: Rels) -> bool:
     result = False
     if isinstance(rels, torch.Tensor):
-        try:
-            squareform(rels.detach().numpy())
-        except:
-            pass
-        else:
-            result = True    
+        s = rels.shape
+        if len(s) == 1:
+            d = int(np.ceil(np.sqrt(s[0] * 2)))
+            if d * (d - 1) == s[0] * 2:
+                result = True
     return result
 
 def _is_flat_array(rels: Rels) -> bool:

@@ -253,6 +253,9 @@ class ParametricDR():
         self._dataset_registered = False
 
         self.use_cuda = use_cuda
+        if use_cuda:
+            self.model.cuda()
+
         self.verbose = verbose
 
     def __call__(self,
@@ -471,6 +474,11 @@ class ParametricDR():
         dataloader = self._prepare_loader(training_phase)
         optimizer = self._prepare_optimizer(training_phase)
 
+        if self.verbose:
+            pdutils.report(
+                f"Beginning training phase {training_phase.name}."
+            )
+
         for epoch in range(training_phase.n_epochs):
             running_loss = 0.
             batch: dict[str, torch.Tensor]
@@ -500,6 +508,12 @@ class ParametricDR():
                 pdutils.report(
                     f"Loss after epoch {epoch}: {running_loss}"
                 )
+    
+    def train(self) -> None:
+        
+        self._compute_global_relations()
+        for tp in self.training_phases:
+            self.run_training_phase(tp)
 
                 
                 
