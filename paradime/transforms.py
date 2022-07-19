@@ -549,11 +549,11 @@ class StudentTTransform(RelationTransform):
 class ModifiedCauchyTransform(RelationTransform):
     """Transforms relations based on a modified Cauchy distribution.
 
-    This trnaforms applies a modified Cauchy distribution function
+    This transform applies a modified Cauchy distribution function
     to the relations. The distribution's parameters :param:`a` and
-    :param:`b` are determined from the more easily imaginable parameters
-    :param:`min_dist` and :param:`spread` by fittin a smooth
-    approximation to an offset exponential decay.
+    :param:`b` are determined from the parameters :param:`min_dist`
+    and :param:`spread` by fitting a smooth approximation of an offset
+    exponential decay.
     
     Args:
         min_dist: Effective minimum distance of points if the transformed
@@ -624,3 +624,50 @@ def _find_ab_params(spread: float, min_dist: float) -> tuple[float, float]:
     yv[xv >= min_dist] = np.exp(-(xv[xv >= min_dist] - min_dist) / spread)
     params, _ = scipy.optimize.curve_fit(curve, xv, yv)
     return params[0], params[1]
+
+
+class Functional(RelationTransform):
+    """Applies a function to the relation data.
+
+    By default, this transform applies a given function to the :attr:`data`
+    attribute of the :class:`RelationData` instance in place and returns
+    the transformed instance. This assumes that the transform does not
+    change the data in a way that is incompatible with the
+    :class:`RelationData` subclass. The transform can also be applied to
+    the whole :class:`RelationData` instance by setting :param:`in_place`
+    to False. In this case, the output is that of the given function.
+    
+    Args:
+        f: Function to be applied to the relations.
+        in_place: Toggles whether the function is applied to the
+        :attr:`data` attribute of the :class:`RelationData` object
+            (default), or to the :class:`RelationData` itself.
+        check_valid: Toggles whether a check for the transformed relation
+            data's validity is performed. If :param:`in_place` is set to
+            False, no checks are performed regardless of this parameter.
+    """
+
+    def __init__(self,
+        f: Callable[..., Any],
+        in_place: bool = True,
+        check_valid: bool = False
+    ) -> None:
+        self.f = f
+        self.in_place = in_place
+        self.check_valid = check_valid
+
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+
+        if self.in_place:
+            reldata.data = self.f(reldata.data)
+            if self.check_valid:
+                try:
+                    type(reldata)(reldata.data)  # type:ignore
+                except:
+                    raise ValueError(
+                        "Transformed relation data no longer compatible "
+                        f"with type {type(reldata).__name__}."
+                    )
+            return reldata
+        else:
+            return self.f(reldata)
