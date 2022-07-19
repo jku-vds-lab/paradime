@@ -37,6 +37,21 @@ class Relations():
         else:
             self.transform = transform
 
+        self._relations: Optional[pdreld.RelationData] = None
+
+    @property
+    def relations(self) -> pdreld.RelationData:
+        if self._relations is None:
+            raise AttributeError(
+                "Relations only available after calling 'compute_relations'."
+            )
+        else:
+            return self._relations
+    
+    @relations.setter
+    def relations(self, reldata: pdreld.RelationData) -> None:
+        self._relations = reldata
+
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs) -> pdreld.RelationData:
@@ -157,7 +172,7 @@ class PDist(Relations):
 
         X = pdutils._convert_input_to_numpy(X)
 
-        if not hasattr(self, 'relations') or not self.keep_result:
+        if self._relations is None or not self.keep_result:
             if self.verbose:
                 pdutils.report('Calculating pairwise distances.')
             self.relations = self._transform(
