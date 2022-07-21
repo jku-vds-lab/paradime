@@ -18,7 +18,7 @@ Rels = Union[
 Tensor = Union[
     np.ndarray,
     spmatrix,
-    torch.Tensor
+    torch.Tensor,
 ]
 
 Metric = Union[

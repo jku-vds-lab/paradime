@@ -99,7 +99,7 @@ class NegSampledEdgeDataset(td.Dataset):
     :method:`torch.utils.data.default_collate` method.
 
     Args:
-        data: The data in the form of a ParaDime :class:`paradime.Dataset`.
+        data: The data in the form of a ParaDime :class:`paradime.dr.Dataset`.
         relations: A :class:`paradime.relationdata.RelationData` object with
             the edge data used for negative edge sampling.
         neg_sampling_rate: The negative sampling rate.
@@ -194,7 +194,7 @@ def _collate_edge_batch(
 
 class TrainingPhase():
     """A collection of parameter settings for a single phase in the
-    training of a :class:`paradime.ParametricDR` instance.
+    training of a :class:`paradime.dr.ParametricDR` instance.
 
     Args:
         name: The name of the training phase.
@@ -271,9 +271,9 @@ class ParametricDR():
             optimized during training.
         dataset: The dataset on which to perform the training, passed either
             as a single numpy array or PyTorch tensor, a dictionary containing
-                multiple arrays and/or tensors, or a :class:`paradime.Dataset`.
-                Datasets can be registerd after instantiation using the
-                :meth:`register_dataset` class method.
+                multiple arrays and/or tensors, or a
+                :class:`paradime.dr.Dataset` Datasets can be registerd after
+                instantiation using the :meth:`register_dataset` class method.
         global_relations: A single :class:`paradime.relations.Relations`
             instance or a dictionary with multiple 
             :class:`paradime.relations.Relations` instances. Global relations
@@ -284,14 +284,14 @@ class ParametricDR():
             are calculated during training for each batch and are compared to
             an appropriate subset of the global relations by a
             :class:`paradime.loss.RelationLoss`.
-        training_defaults: A :class:`paradime.TrainingPhase` object with
+        training_defaults: A :class:`paradime.dr.TrainingPhase` object with
             settings that override the default values of all other training
             phases. This parameter is useful to avoid having to repeatedly
             set parameters to the same non-default value across training
             phases. Defaults can also be specified after isntantiation using
             the :meth:`set_training_deafults` class method.
-        training_phases: A single :class:`paradime.TrainingPhase` object or a
-            list of :class:`paradime.TrainingPhase` objects defining the
+        training_phases: A single :class:`paradime.dr.TrainingPhase` object or
+            a list of :class:`paradime.dr.TrainingPhase` objects defining the
             training phases to be run. Training phases can also be added
             after instantiation using the :meth:`add_training_pahse` class
             method.
@@ -300,6 +300,9 @@ class ParametricDR():
             of relations, transforms and/or losses used within the parametric
             dimensionality reduction.
 
+    Attributes:
+        device: The device on which the model is allocated (depends on the
+            value specified for :attr:`use_cuda`).
     """
 
     def __init__(self,
@@ -352,6 +355,11 @@ class ParametricDR():
         self.use_cuda = use_cuda
         if use_cuda:
             self.model.cuda()
+
+        # set device to device of first model parameter
+        for p in self.model.parameters():
+            self.device = p.device
+            break
 
         self.trained = False
 
@@ -430,17 +438,17 @@ class ParametricDR():
         """Sets a parametric dimensionality reduction routine's default
         training parameters.
 
-        This methods accepts either a :class:`paradime.TrainingPhase` instance
-        or individual parameters passed with the same keyword syntax used by
-        :class:`paradime.TrainingPhase`. The specified default parameters
-        will be used instead of the regular defaults when adding training
-        phases.
+        This methods accepts either a :class:`paradime.dr.TrainingPhase`
+        instance or individual parameters passed with the same keyword syntax
+        used by :class:`paradime.dr.TrainingPhase`. The specified default
+        parameters will be used instead of the regular defaults when adding
+        training phases.
 
         Args:
-            training_phase: A :class:`paradime.TrainingPhase` instance with
+            training_phase: A :class:`paradime.dr.TrainingPhase` instance with
                 the new default settings. Instead of this, individual
                 parameters can also be passed. For a full list of training
-                phase settings, see :class:`paradime.TrainingPhase`. 
+                phase settings, see :class:`paradime.dr.TrainingPhase`. 
         """
         if training_phase is not None:
             self.training_defaults = training_phase
@@ -485,15 +493,15 @@ class ParametricDR():
         """Adds a single training phase to a parametric dimensionality
         reduction routine.
 
-        This methods accepts either a :class:`paradime.TrainingPhase` instance
-        or individual parameters passed with the same keyword syntax used by
-        :class:`paradime.TrainingPhase`.
+        This methods accepts either a :class:`paradime.dr.TrainingPhase`
+        instance or individual parameters passed with the same keyword syntax
+        used by :class:`paradime.dr.TrainingPhase`.
 
         Args:
-            training_phase: A :class:`paradime.TrainingPhase` instance with
+            training_phase: A :class:`paradime.dr.TrainingPhase` instance with
                 the new default settings. Instead of this, individual
                 parameters can also be passed. For a full list of training
-                phase settings, see :class:`paradime.TrainingPhase`. 
+                phase settings, see :class:`paradime.dr.TrainingPhase`. 
         """
         if training_phase is None:
             training_phase = self.training_defaults
@@ -544,7 +552,7 @@ class ParametricDR():
         Args:
             dataset: The data, passed either as a single numpy array or PyTorch
                 tensor, a dictionary containing multiple arrays and/or
-                tensors, or a :class:`paradime.Dataset`.
+                tensors, or a :class:`paradime.dr.Dataset`.
             """
         if isinstance(dataset, Dataset):
             self.dataset = dataset
@@ -637,7 +645,7 @@ class ParametricDR():
         """Runs a single training phase.
 
         Args:
-            training_phase: A :class:`paradime.TrainingPhase` instance.
+            training_phase: A :class:`paradime.dr.TrainingPhase` instance.
         """
         dataloader = self._prepare_loader(training_phase)
         optimizer = self._prepare_optimizer(training_phase)
@@ -653,23 +661,20 @@ class ParametricDR():
 
             for batch in dataloader:
 
-                if self.use_cuda:
-                    for k in batch:
-                        batch[k] = batch[k].cuda()
-
                 optimizer.zero_grad()
 
                 loss = training_phase.loss.forward(
                     self.model,
                     self.global_relation_data,
                     self.batch_relations,
-                    batch
+                    batch,
+                    self.device
                 )
 
                 loss.backward()
                 optimizer.step()
 
-                running_loss += loss.item()
+                running_loss += loss.detach().cpu().item()
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)

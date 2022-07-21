@@ -1,8 +1,9 @@
 from datetime import datetime
 import torch
 import numpy as np
-import scipy
+import scipy.sparse
 import functools
+from typing import Union
 
 from paradime.types import Tensor
 
@@ -29,17 +30,17 @@ def _convert_input_to_numpy(
 
     return X
 
-def _convert_input_to_torch(X: Tensor) -> torch.Tensor:
+def _convert_input_to_torch(X: Union[Tensor, list[float]]) -> torch.Tensor:
 
     if isinstance(X, torch.Tensor):
         pass
     elif isinstance(X, scipy.sparse.spmatrix):
         # TODO: conserve sparseness
         X = torch.tensor(X.toarray())
-    elif isinstance(X, np.ndarray):
+    elif isinstance(X, (np.ndarray, list)):
         X = torch.tensor(X)
     else:
-        raise TypeError(f'Input type {type(X)} not supported')
+        raise TypeError(f"Input type {type(X)} not supported")
 
     return X
 

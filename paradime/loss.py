@@ -1,11 +1,13 @@
 import torch
 import uuid
-from typing import Optional, Literal
+import numpy as np
+from typing import Optional, Literal, Union
 
 import paradime.relations as pdrel
 import paradime.relationdata as pdreldata
 import paradime.models as pdmod
-from paradime.types import LossFun, Tensor
+import paradime.utils as pdutils
+from paradime.types import LossFun
 from paradime.exceptions import UnsupportedConfigurationError
 
 class Loss(torch.nn.Module):
@@ -16,7 +18,6 @@ class Loss(torch.nn.Module):
     Attributes:
         name: The name of the loss (used by logging functions).
     """
-
     _prefix = 'loss'
 
     def __init__(self, name: Optional[str] = None):
@@ -32,6 +33,7 @@ class Loss(torch.nn.Module):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
     ) -> torch.Tensor:
         """Apply the loss to a batch of input data.
 
@@ -45,13 +47,12 @@ class Loss(torch.nn.Module):
                 :class:`paradime.relations.Relations` to be computed for the
                 batch of input data.
             batch: A batch of input data as a dictionary of PyTorch tensors.
+            device: The device that all relevant tensors will be moved to.
 
         Returns:
             A single-item PyTorch tensor with the computed loss.
         """
-
         raise NotImplementedError()
-
 
 class RelationLoss(Loss):
     """A loss that compares batch-wise relation data against a subset of
@@ -70,7 +71,6 @@ class RelationLoss(Loss):
         batch_relation_key: Key under which to find the batch-wise relations.
         name: Name of the loss (used by logging functions).
     """
-
     _prefix = 'rel_loss'
 
     def __init__(self,
@@ -114,21 +114,22 @@ class RelationLoss(Loss):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
     ) -> torch.Tensor:
 
         if self._use_from_to:
             loss = self.loss_function(
-                batch[self.global_relation_key],
+                batch[self.global_relation_key].to(device),
                 batch_relations[self.batch_relation_key].compute_relations(
-                    batch[self.data_key]
+                    batch[self.data_key].to(device)
                 ).data
             )
         else:
             loss = self.loss_function(
                 global_relations[self.global_relation_key].sub(
-                    batch['indices']),
+                    batch['indices']).to(device),
                 batch_relations[self.batch_relation_key].compute_relations(
-                    model.embed(batch[self.data_key])
+                    model.embed(batch[self.data_key].to(device))
                 ).data
             )
         return loss
@@ -151,7 +152,6 @@ class ClassificationLoss(Loss):
             relations.
         name: Name of the loss (used by logging functions).
     """
-
     _prefix = 'class_loss'
 
     def __init__(self,
@@ -171,11 +171,12 @@ class ClassificationLoss(Loss):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
         ) -> torch.Tensor:
 
         return self.loss_function(
-            model.classify(batch[self.data_key]),
-            batch[self.label_key]
+            model.classify(batch[self.data_key].to(device)),
+            batch[self.label_key].to(device)
         )
 
 class PositionLoss(Loss):
@@ -196,7 +197,6 @@ class PositionLoss(Loss):
             relations.
         name: Name of the loss (used by logging functions).
     """
-
     _prefix = 'pos_loss'
 
     def __init__(self,
@@ -216,11 +216,12 @@ class PositionLoss(Loss):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
         ) -> torch.Tensor:
 
         return self.loss_function(
-            model.embed(batch[self.data_key]),
-            batch[self.position_key]
+            model.embed(batch[self.data_key].to(device)),
+            batch[self.position_key].to(device)
         )
     
 class ReconstructionLoss(Loss):
@@ -236,7 +237,6 @@ class ReconstructionLoss(Loss):
         data_key: The key under which to find the data in the input batch.
         name: Name of the loss (used by logging functions).
     """
-
     _prefix = 'recon_loss'
 
     def __init__(self,
@@ -254,12 +254,12 @@ class ReconstructionLoss(Loss):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
         ) -> torch.Tensor:
 
-        return self.loss_function(
-            batch[self.data_key],
-            model.decode(model.encode(batch[self.data_key])),
-        )
+        data = batch[self.data_key].to(device)
+
+        return self.loss_function(data, model.decode(model.encode(data)))
 
 class CompoundLoss(Loss):
     """A weighted sum of multiple losses.
@@ -272,25 +272,23 @@ class CompoundLoss(Loss):
             all losses are weighted equally.
         name: Name of the loss (used by logging functions).
     """
-
     _prefix = 'comp_loss'
 
     def __init__(self,
         losses: list[Loss],
-        weights: Tensor,
+        weights: Union[np.ndarray, torch.Tensor, list[float], None] = None,
         name: Optional[str] = None,
     ):
         super().__init__(name)
 
         self.losses = losses
-        self.weights = weights
 
-        if self.weights is None:
-            self.weights = torch.ones(len(losses))
-        elif len(self.weights) != len(self.losses):
-            raise ValueError(
-                "Size mismatch between losses and weights."
-            )
+        if weights is None:
+            weights = torch.ones(len(losses))
+        elif len(weights) != len(self.losses):
+            raise ValueError("Size mismatch between losses and weights.")
+        
+        self.weights = pdutils._convert_input_to_torch(weights)
 
     def _check_sampling_and_relations(
         self,
@@ -309,11 +307,13 @@ class CompoundLoss(Loss):
         global_relations: dict[str, pdreldata.RelationData],
         batch_relations: dict[str, pdrel.Relations],
         batch: dict[str, torch.Tensor],
+        device: torch.device,
     ) -> torch.Tensor:
 
-        total_loss = torch.tensor(0.)
+        total_loss = torch.tensor(0.).to(device)
 
-        for l,w in zip(self.losses, self.weights):
-            total_loss += w * l(model, global_relations, batch_relations, batch)
+        for l, w in zip(self.losses, self.weights.to(device)):
+            loss = l(model, global_relations, batch_relations, batch, device)
+            total_loss += w * loss
 
         return total_loss
