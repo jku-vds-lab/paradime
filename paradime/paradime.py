@@ -657,13 +657,13 @@ class ParametricDR():
 
         for epoch in range(training_phase.n_epochs):
             running_loss = 0.
+            
             batch: dict[str, torch.Tensor]
-
             for batch in dataloader:
 
                 optimizer.zero_grad()
 
-                loss = training_phase.loss.forward(
+                loss = training_phase.loss(
                     self.model,
                     self.global_relation_data,
                     self.batch_relations,

@@ -489,10 +489,10 @@ class StudentTTransform(RelationTransform):
             pdreld.FlatRelationTensor,
         )):
             reldata.data = reldata.data.pow(2.)
-            reldata.data = torch.pow(
-                1. + reldata.data / self.alpha,
-                - (self.alpha + 1.) / 2.
-            )
+            reldata.data += 1.
+            reldata.data /= self.alpha
+            #TODO: fix RuntimeError due to in-place operation below
+            reldata.data = torch.pow(torch.clone(reldata.data), - (self.alpha + 1.) / 2)
         elif isinstance(reldata, (
             pdreld.SquareRelationArray,
             pdreld.TriangularRelationArray,
