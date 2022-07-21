@@ -21,8 +21,24 @@ import paradime.exceptions as pdexc
 from paradime.types import Tensor, Data
 
 class Dataset(td.Dataset):
+    """A dataset for dimensionality reduction.
 
-    def __init__(self, data: Data) -> None:
+    Constructs a PyTorch :class:torch.utils.data.Dataset from the given data
+    in such a way that each item or batch of items is a dictionary with
+    PyTorch tensors as values. If only a single numpy array or PyTorch tensor
+    is passed, this data will be available under the 'data' key of the dict.
+    Alternatively, a dict of tensors and/or arrays can be passed, which allows
+    additional data such as labels for supervised learning. By default, an
+    entry for indices is added to the dict, if it is not yet included in the
+    passed dict.
+
+    Args:
+        data: The data, passed either as a single numpy array or PyTorch
+            tensor, or as a dictionary containing multiple arrays and/or
+            tensors.
+    """
+
+    def __init__(self, data: Data):
 
         self.data: dict[str, torch.Tensor] = {}
 
@@ -70,12 +86,30 @@ class Dataset(td.Dataset):
 
 
 class NegSampledEdgeDataset(td.Dataset):
+    """A dataset that supports negative edge sampling.
+
+    Constructs a PyTorch :class:`torch.utils.data.Dataset` suitable for
+    negative sampling from a regular :class:Dataset. The passed relation
+    data, along with the negative samplnig rate `r`, is used to inform the
+    negative sampling process. Each \"item\" `i` of the resulting dataset
+    is essentially a small batch of items, including the `i`th item of the
+    original dataset, one of it's actual neighbors, and `r` random other
+    items that are considered to not be neighbors of `i`. Remaining data
+    from the original dataset is collated using PyTorch's
+    :method:`torch.utils.data.default_collate` method.
+
+    Args:
+        data: The data in the form of a ParaDime :class:`paradime.Dataset`.
+        relations: A :class:`paradime.relationdata.RelationData` object with
+            the edge data used for negative edge sampling.
+        neg_sampling_rate: The negative sampling rate.
+    """
 
     def __init__(self,
         dataset: Dataset,
         relations: pdreldata.RelationData,
-        neg_sampling_rate: int = 5
-    ) -> None:
+        neg_sampling_rate: int = 5,
+    ):
 
         self.dataset = dataset
         self.p_ij = relations.to_sparse_array().data.tocoo()
@@ -159,6 +193,30 @@ def _collate_edge_batch(
 
 
 class TrainingPhase():
+    """A collection of parameter settings for a single phase in the
+    training of a :class:`paradime.ParametricDR` instance.
+
+    Args:
+        name: The name of the training phase.
+        n_epochs: The number of epochs to run in this phase.
+        batch_size: The number of items in a batch. In the case of negative
+            edge sampling, the actual number of items per batch is roughly
+            `r + 1` times more, where `r` is the negative sampling rate.
+        sampling: The sampling strategy, which can be either `standard`
+            (simple item-based sampling; default) or `negative_edge`
+            (negative edge sampling).
+        edge_rel_key: The key under which to find the global relations that
+            should be used for negative edge sampling.
+        neg_sampling_rate: The number of negative (i.e., non-neighbor) edges
+            to sample for each real neighborhood edge.
+        loss: The loss that is minimized in this training phase.
+        optimizer: The optmizer to use for loss minimization.
+        learning_rate: The learning rate used in the optimization.
+        report_interval: How often the loss should be reported during
+            training, given in terms of epochs. E.g., with a setting of 5,
+            the loss will be reported every 5 epochs.
+        kwargs: Additional kwargs that are passed on to the optimizer.
+    """
 
     def __init__(self,
         name: Optional[str] = None,
@@ -172,7 +230,7 @@ class TrainingPhase():
         learning_rate: float = 0.01,
         report_interval: int = 5,
         **kwargs
-    ) -> None:
+    ):
         
         self.name = name
         self.n_epochs = n_epochs
@@ -206,18 +264,61 @@ RelOrRelDict = Union[
 ]
 
 class ParametricDR():
+    """A general parametric dimensionality reduction routine.
+
+    Args:
+        model: The PyTorch :class:`torch.nn.module` whose parameters are
+            optimized during training.
+        dataset: The dataset on which to perform the training, passed either
+            as a single numpy array or PyTorch tensor, a dictionary containing
+                multiple arrays and/or tensors, or a :class:`paradime.Dataset`.
+                Datasets can be registerd after instantiation using the
+                :meth:`register_dataset` class method.
+        global_relations: A single :class:`paradime.relations.Relations`
+            instance or a dictionary with multiple 
+            :class:`paradime.relations.Relations` instances. Global relations
+            are calculated once for the whole dataset before training.
+        batch_relations: A single :class:`paradime.relations.Relations`
+            instance or a dictionary with multiple 
+            :class:`paradime.relations.Relations` instances. Batch relations
+            are calculated during training for each batch and are compared to
+            an appropriate subset of the global relations by a
+            :class:`paradime.loss.RelationLoss`.
+        training_defaults: A :class:`paradime.TrainingPhase` object with
+            settings that override the default values of all other training
+            phases. This parameter is useful to avoid having to repeatedly
+            set parameters to the same non-default value across training
+            phases. Defaults can also be specified after isntantiation using
+            the :meth:`set_training_deafults` class method.
+        training_phases: A single :class:`paradime.TrainingPhase` object or a
+            list of :class:`paradime.TrainingPhase` objects defining the
+            training phases to be run. Training phases can also be added
+            after instantiation using the :meth:`add_training_pahse` class
+            method.
+        use_cuda: Whether or not to use the GPU for training.
+        verbose: Verbosity flag. This setting overrides all verbosity settings
+            of relations, transforms and/or losses used within the parametric
+            dimensionality reduction.
+
+    """
 
     def __init__(self,
         model: pdmod.Model,
+        dataset: Optional[Union[Data, Dataset]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
         training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
         use_cuda: bool = False,
-        verbose: bool = False
-        ) -> None:
+        verbose: bool = False,
+    ):
 
         self.model = model
+
+        self.dataset: Optional[Dataset] = None
+        self._dataset_registered = False
+        if dataset is not None:
+            self.register_dataset(dataset)        
 
         # TODO: check relation input for validity
         if isinstance(global_relations, pdrel.Relations):
@@ -248,13 +349,11 @@ class ParametricDR():
             for tp in training_phases:
                 self.add_training_phase(training_phase=tp)
 
-        self.trained = False
-        self.dataset: Optional[Dataset] = None
-        self._dataset_registered = False
-
         self.use_cuda = use_cuda
         if use_cuda:
             self.model.cuda()
+
+        self.trained = False
 
         self.verbose = verbose
 
@@ -264,24 +363,56 @@ class ParametricDR():
         
         return self.embed(X)
 
-    def embed(self,
-        X: Tensor
+    def _call_model_method_by_name(self,
+        method_name: str,
+        X: Tensor,
     ) -> torch.Tensor:
 
         X = pdutils._convert_input_to_torch(X)
 
-        if not hasattr(self.model, 'embed'):
+        if not hasattr(self.model, method_name):
             raise AttributeError(
-                "Model has no 'embed' method."
+                f"Model has no {method_name} method."
+            )
+        elif not callable(getattr(self.model, method_name)):
+            raise ValueError(
+                f"Attribute {method_name} of model is not a callable."
             )
 
         if self.trained:
-            return self.model.embed(X)
+            return getattr(self.model, method_name)(X)
         else:
             raise pdexc.NotTrainedError(
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before using encoder."
             )
+
+    def embed(self,
+        X: Tensor
+    ) -> torch.Tensor:
+        """Embeds data into the learned embedding space using the model's
+        `embed` method.
+
+        Args:
+            X: A numpy array or PyTorch tensor with the data to be embedded.
+        
+        Returns:
+            A PyTorch tensor with the embedding coordinates for the data.
+        """
+        return self._call_model_method_by_name('embed', X)
+
+    def classify(self,
+        X: Tensor
+    ) -> torch.Tensor:
+        """Classifies data using the model's `classify` method.
+
+        Args:
+            X: A numpy array or PyTorch tensor with the data to be classified.
+
+        Returns:
+            A PyTorch tensor with the predicted class labels for the data.
+        """
+        return self._call_model_method_by_name('classify ', X)       
 
     def set_training_defaults(self,
         training_phase: Optional[TrainingPhase] = None,
@@ -296,7 +427,21 @@ class ParametricDR():
         report_interval: Optional[int] = 5,
         **kwargs
     ) -> None:
+        """Sets a parametric dimensionality reduction routine's default
+        training parameters.
 
+        This methods accepts either a :class:`paradime.TrainingPhase` instance
+        or individual parameters passed with the same keyword syntax used by
+        :class:`paradime.TrainingPhase`. The specified default parameters
+        will be used instead of the regular defaults when adding training
+        phases.
+
+        Args:
+            training_phase: A :class:`paradime.TrainingPhase` instance with
+                the new default settings. Instead of this, individual
+                parameters can also be passed. For a full list of training
+                phase settings, see :class:`paradime.TrainingPhase`. 
+        """
         if training_phase is not None:
             self.training_defaults = training_phase
         if n_epochs is not None:
@@ -337,6 +482,19 @@ class ParametricDR():
         report_interval: Optional[int] = None,
         **kwargs
     ) -> None:
+        """Adds a single training phase to a parametric dimensionality
+        reduction routine.
+
+        This methods accepts either a :class:`paradime.TrainingPhase` instance
+        or individual parameters passed with the same keyword syntax used by
+        :class:`paradime.TrainingPhase`.
+
+        Args:
+            training_phase: A :class:`paradime.TrainingPhase` instance with
+                the new default settings. Instead of this, individual
+                parameters can also be passed. For a full list of training
+                phase settings, see :class:`paradime.TrainingPhase`. 
+        """
         if training_phase is None:
             training_phase = self.training_defaults
         assert isinstance(training_phase, TrainingPhase)
@@ -378,13 +536,20 @@ class ParametricDR():
         self.training_phases.append(training_phase)
 
     def register_dataset(self,
-        data: Data
+        dataset: Union[Data, Dataset]
     ) -> None:
-
-        if isinstance(data, Dataset):
-            self.dataset = data
+        """Registers a dataset for a parametric dimensionality reduction
+        routine.
+        
+        Args:
+            dataset: The data, passed either as a single numpy array or PyTorch
+                tensor, a dictionary containing multiple arrays and/or
+                tensors, or a :class:`paradime.Dataset`.
+            """
+        if isinstance(dataset, Dataset):
+            self.dataset = dataset
         else:
-            self.dataset = Dataset(data)
+            self.dataset = Dataset(dataset)
 
         self._dataset_registered = True
 
@@ -407,7 +572,6 @@ class ParametricDR():
                 ))
                 
         self._global_relations_computed = True
-
 
     def _prepare_loader(self,
         training_phase: TrainingPhase
@@ -470,7 +634,11 @@ class ParametricDR():
     def run_training_phase(self,
         training_phase: TrainingPhase
     ) -> None:
+        """Runs a single training phase.
 
+        Args:
+            training_phase: A :class:`paradime.TrainingPhase` instance.
+        """
         dataloader = self._prepare_loader(training_phase)
         optimizer = self._prepare_optimizer(training_phase)
 
@@ -510,7 +678,9 @@ class ParametricDR():
                 )
     
     def train(self) -> None:
-        
+        """Runs all training phases of a parametric dimensionality reduction
+        routine.
+        """        
         self._compute_global_relations()
         for tp in self.training_phases:
             self.run_training_phase(tp)

@@ -10,13 +10,11 @@ from paradime import relationdata as pdreld
 from paradime import utils as pdutils
 from .types import Tensor, Rels
 
-
 class RelationTransform():
     """Base class for relation transforms.
     
     Custom transforms should subclass this class.
     """
-
     def __call__(self,reldata: pdreld.RelationData) -> pdreld.RelationData:
 
         return self.transform(reldata)
@@ -25,15 +23,15 @@ class RelationTransform():
         """Applies the transform to input data.
         
         Args:
-            reldata: The :class:`RelationData` instance to be transformed.
+            reldata: The :class:`paradime.relationdata.RelationData` instance
+                to be transformed.
 
         Returns:
-            A :class:`RelationData` instance containing the transformed
-                relation values.
+            A :class:`paradime.relationdata.RelationData` instance containing
+                the transformed relation values.
         """
 
         raise NotImplementedError()
-
 
 class Identity(RelationTransform):
     """A placeholder identity transform."""
@@ -41,62 +39,61 @@ class Identity(RelationTransform):
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
         return reldata
 
-
-class ToSquareArray(RelationTransform):
-    """Converts the relation data to square array format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_square_array()
-
-
-class ToSquareTensor(RelationTransform):
-    """Converts the relation data to square tensor format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_square_tensor()
-
-
-class ToTriangularArray(RelationTransform):
-    """Converts the relation data to triangular array format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_triangular_array()
-
-
-class ToTriangularTensor(RelationTransform):
-    """Converts the relation data to triangular tensor format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_triangular_tensor()
-
-
-class ToSparseArray(RelationTransform):
-    """Converts the relation data to sparse array format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_sparse_array()
-
-
-class ToNeighborTuple(RelationTransform):
-    """Converts the relation data to neighbor tuple format."""
-
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-        return reldata.to_neighbor_tuple()
-
-
 class ToFlatArray(RelationTransform):
-    """Converts the relation data to flat array format."""
-
+    """Converts the relations to a
+    :class:`paradime.relationdata.FlatRelationArray`.
+    """
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
         return reldata.to_flat_array()
 
-
 class ToFlatTensor(RelationTransform):
-    """Converts the relation data to flat tensor format."""
-
+    """Converts the relations to a
+    :class:`paradime.relationdata.FlatRelationTensor`.
+    """
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
         return reldata.to_flat_tensor()
 
+class ToSquareArray(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.SquareRelationArray`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_square_array()
+
+class ToSquareTensor(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.SquareRelationTensor`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_square_tensor()
+
+class ToTriangularArray(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.TriangularRelationArray`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_triangular_array()
+
+class ToTriangularTensor(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.TriangularRelationTensor`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_triangular_tensor()
+
+class ToNeighborTuple(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.NeighborRelationTuple`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_neighbor_tuple()
+
+class ToSparseArray(RelationTransform):
+    """Converts the relations to a
+    :class:`paradime.relationdata.SparseRelationArray`.
+    """
+    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+        return reldata.to_sparse_array()
 
 class AdaptiveNeighborhoodRescale(RelationTransform):
     """Rescales relation values for each data point based on its neighbors.
@@ -125,7 +122,7 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         find_param: Callable[..., float],
         verbose: bool = False,
         **kwargs
-    ) -> None:
+    ):
         super().__init__()
 
         self.kernel = kernel
@@ -162,7 +159,7 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         self._param_values = np.empty(num_pts, dtype=float)
 
         if self.verbose:
-            pdutils.report('Calculating probabilities.')
+            pdutils.report("Calculating probabilities.")
 
         for i, rels in enumerate(relations):
             beta = self.find_param(
@@ -176,7 +173,6 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         reldata.data = (neighbors, relations)
         
         return reldata
-
 
 class PerplexityBasedRescale(AdaptiveNeighborhoodRescale):
     """Applies a perplexity-based transformation to the relation values.
@@ -199,7 +195,7 @@ class PerplexityBasedRescale(AdaptiveNeighborhoodRescale):
         perplexity: float = 30,
         verbose: bool = False,
         **kwargs # passed on to root_scalar
-    ) -> None:
+    ):
         super().__init__(
             _p_i,
             _find_beta,
@@ -219,31 +215,6 @@ class PerplexityBasedRescale(AdaptiveNeighborhoodRescale):
     def _set_root_scalar_defaults(self) -> None:
         if not self.kwargs: # check if emtpy
             self.kwargs['bracket'] = [0.01, 1.]
-
-    # def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
-
-    #     reldata = reldata.to_array_tuple()
-    #     reldata._remove_self_relations()
-
-    #     neighbors, relations = reldata.data
-    #     num_pts = len(neighbors)
-    #     self.beta = np.empty(num_pts, dtype=float)
-
-    #     if self.verbose:
-    #         pdutils.report('Calculating probabilities.')
-
-    #     for i, rels in enumerate(relations):
-    #         beta = _find_beta(
-    #             rels,
-    #             self.perplexity,
-    #             **self.kwargs
-    #         )
-    #         self.beta[i] = beta
-    #         relations[i] = _p_i(rels, beta)
-
-    #     reldata.data = (neighbors, relations)
-        
-    #     return reldata
 
 @jit
 def _entropy(dists: np.ndarray, beta: float) -> float:
@@ -272,7 +243,6 @@ def _find_beta(dists: np.ndarray, perp: float, **kwargs) -> float:
         **kwargs
     ).root
 
-
 class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
     """Applies a connectivity-based transformation to the relation values.
 
@@ -295,7 +265,7 @@ class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
         n_neighbors: float = 15,
         verbose: bool = False,
         **kwargs # passed on to root_scalar
-    ) -> None:
+    ):
         super().__init__(
             _exp_k,
             _find_sigma,
@@ -351,14 +321,13 @@ def _find_sigma(dists: np.ndarray, k: int, **kwargs) -> float:
         **kwargs
     ).root
 
-
 class Symmetrize(RelationTransform):
     """Symmetrizes the relation values.
     
     Args:
         subtract_product: Specifies which symmetrization routine to use.
-            If set to false (default), a matrix M is symmetrized by
-            calculating 1/2 * (M + M^T); if set to true, M is symmetrized
+            If set to False (default), a matrix M is symmetrized by
+            calculating 1/2 * (M + M^T); if set to True, M is symmetrized
             by calculating M + M^T - M * M^T, where '*' is the element-wise
             (Hadamard) product.
     """
@@ -385,10 +354,7 @@ class Symmetrize(RelationTransform):
             else:
                 return symmetrizer(reldata)
 
-
-def _sym_plus_only(
-    reldata: pdreld.RelationData
-) -> pdreld.RelationData:
+def _sym_plus_only(reldata: pdreld.RelationData) -> pdreld.RelationData:
     if isinstance(reldata, pdreld.SquareRelationArray):
         reldata.data = (0.5 * (reldata.data + reldata.data.T))
     elif isinstance(reldata, pdreld.SparseRelationArray):
@@ -396,12 +362,12 @@ def _sym_plus_only(
     elif isinstance(reldata, pdreld.SquareRelationTensor):
         reldata.data = 0.5 * (reldata.data + torch.t(reldata.data))
     else:
-        raise TypeError("Expected non-flat :class:`RelationData`.")
+        raise TypeError(
+            "Expected non-flat :class:`paradime.relationdata.RelationData`."
+        )
     return reldata
 
-def _sym_subtract_product(
-    reldata: pdreld.RelationData
-) -> pdreld.RelationData:
+def _sym_subtract_product(reldata: pdreld.RelationData) -> pdreld.RelationData:
     if isinstance(reldata, pdreld.SquareRelationArray):
         reldata.data = (reldata.data + reldata.data.T
             - reldata.data * reldata.data.T)
@@ -412,9 +378,10 @@ def _sym_subtract_product(
         reldata.data = (reldata.data + torch.t(reldata.data)
             - reldata.data * torch.t(reldata.data))
     else:
-        raise TypeError("Expected non-flat :class:`RelationData`.")
+        raise TypeError(
+            "Expected non-flat :class:`paradime.relationdata.RelationData`."
+        )
     return reldata
-
 
 class NormalizeRows(RelationTransform):
     """Normalizes the relation values for each data point separately."""
@@ -445,9 +412,10 @@ class NormalizeRows(RelationTransform):
             reldata.data = (neighbors,
                 relations / relations.sum(axis=1, keepdims=True))
         else:
-            raise TypeError("Expected non-flat :class:`RelationData`.")
+            raise TypeError(
+                "Expected non-flat :class:`paradime.relationdata.RelationData`."
+            )
         return reldata
-
 
 class Normalize(RelationTransform):
     """Normalizes the relation values for each data point separately."""
@@ -471,9 +439,10 @@ class Normalize(RelationTransform):
             neighbors, relations = reldata.data
             reldata.data = (neighbors, relations / relations.sum())
         else:
-            raise TypeError("Expected :class:`RelationData`.")
+            raise TypeError(
+                "Expected :class:`paradime.relationdata.RelationData`."
+            )
         return reldata
-
 
 class ZeroDiagonal(RelationTransform):
     """Sets all self-relations to zero."""
@@ -494,9 +463,10 @@ class ZeroDiagonal(RelationTransform):
         elif isinstance(reldata, pdreld.NeighborRelationTuple):
             reldata._remove_self_relations()
         else:
-            raise TypeError("Expected non-flat :class:`RelationData`.")
+            raise TypeError(
+                "Expected non-flat :class:`paradime.relationdata.RelationData`."
+            )
         return reldata
-
 
 class StudentTTransform(RelationTransform):
     """Transforms relations based on Student's t-distribution.
@@ -504,11 +474,11 @@ class StudentTTransform(RelationTransform):
     Args:
         alpha: Degrees of freedom of the distribution. This can either be
             a float or a PyTorch tensor. Alpha can be optimized together
-            with the DR model in a :class:`ParametricDR` by setting it to
-            one of the model's additional parameters.
+            with the DR model in a :class:`paradime.dr.ParametricDR` by
+            setting it to one of the model's additional parameters.
     """
 
-    def __init__(self, alpha: Union[float, torch.Tensor]) -> None:
+    def __init__(self, alpha: Union[float, torch.Tensor]):
         self.alpha = alpha
 
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
@@ -542,7 +512,9 @@ class StudentTTransform(RelationTransform):
             )
             reldata.data = (neighbors, rels)
         else:
-            raise TypeError("Expected :class:`RelationData`.")
+            raise TypeError(
+                "Expected :class:`paradime.relationdata.RelationData`."
+            )
         return reldata
 
 
@@ -572,8 +544,8 @@ class ModifiedCauchyTransform(RelationTransform):
         min_dist: float = 0.1,
         spread: float = 1.0,
         a: Optional[Union[float, torch.Tensor]] = None,
-        b: Optional[Union[float, torch.Tensor]] = None
-    ) -> None:
+        b: Optional[Union[float, torch.Tensor]] = None,
+    ):
         self.min_dist = min_dist
         self.spread = spread
 
@@ -609,7 +581,9 @@ class ModifiedCauchyTransform(RelationTransform):
             rels = np.power(1. + rels**(2. * self.b), -1.)
             reldata.data = (neighbors, rels)
         else:
-            raise TypeError("Expected :class:`RelationData`.")
+            raise TypeError(
+                "Expected :class:`paradime.relationdata.RelationData`."
+            )
         return reldata
 
 @functools.cache
@@ -630,18 +604,20 @@ class Functional(RelationTransform):
     """Applies a function to the relation data.
 
     By default, this transform applies a given function to the :attr:`data`
-    attribute of the :class:`RelationData` instance in place and returns
-    the transformed instance. This assumes that the transform does not
-    change the data in a way that is incompatible with the
-    :class:`RelationData` subclass. The transform can also be applied to
-    the whole :class:`RelationData` instance by setting :param:`in_place`
-    to False. In this case, the output is that of the given function.
+    attribute of the :class:`paradime.relationdata.RelationData` instance in
+    place and returns the transformed instance. This assumes that the transform
+    does not change the data in a way that is incompatible with the
+    :class:`paradime.relationdata.RelationData` subclass. The transform can
+    also be applied to the whole :class:`paradime.relationdata.RelationData`
+    instance by setting :param:`in_place` to False. In this case, the output
+    is that of the given function.
     
     Args:
         f: Function to be applied to the relations.
         in_place: Toggles whether the function is applied to the
-        :attr:`data` attribute of the :class:`RelationData` object
-            (default), or to the :class:`RelationData` itself.
+        :attr:`data` attribute of the
+            :class:`paradime.relationdata.RelationData` object (default), or
+            to the :class:`paradime.relationdata.RelationData` itself.
         check_valid: Toggles whether a check for the transformed relation
             data's validity is performed. If :param:`in_place` is set to
             False, no checks are performed regardless of this parameter.
@@ -650,8 +626,8 @@ class Functional(RelationTransform):
     def __init__(self,
         f: Callable[..., Any],
         in_place: bool = True,
-        check_valid: bool = False
-    ) -> None:
+        check_valid: bool = False,
+    ):
         self.f = f
         self.in_place = in_place
         self.check_valid = check_valid

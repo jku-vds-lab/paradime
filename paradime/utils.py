@@ -15,7 +15,6 @@ def report(message: str) -> None:
 
     print(now_str + ': ' + message)
 
-
 def _convert_input_to_numpy(
     X: Tensor) -> np.ndarray:
     
@@ -26,12 +25,11 @@ def _convert_input_to_numpy(
     elif isinstance(X, np.ndarray):
         pass
     else:
-        raise TypeError(f'Input type {type(X)} not supported')
+        raise TypeError(f"Input type {type(X)} not supported")
 
     return X
 
-def _convert_input_to_torch(
-    X: Tensor) -> torch.Tensor:
+def _convert_input_to_torch(X: Tensor) -> torch.Tensor:
 
     if isinstance(X, torch.Tensor):
         pass

@@ -26,9 +26,7 @@ class Relations():
     Custom relations should subclass this class.
     """
     
-    def __init__(self,
-        transform: Optional[Transform] = None
-        ) -> None:
+    def __init__(self, transform: Optional[Transform] = None):
         
         if transform is None:
             self.transform = transform
@@ -75,19 +73,20 @@ class Precomputed(Relations):
 
     Args:
         X: The precomputed relations, in a form accepted by
-            :func:`relation_factory`.
-        transform: A single transform or list of transforms
-            to be applied to the relations.
+            :func:`paradime.relationdata.relation_factory`.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform`s to be applied to the
+            relations.
 
     Attributes:
-        relations: A :class:`RelationData` instance containing the
-        (possibly transformed) relations.
+        relations: A :class:`paradime.relationdata.RelationData` instance
+        containing the (possibly transformed) relations.
     """
 
     def __init__(self,
         X: Tensor,
-        transform: Optional[Transform] = None
-        ) -> None:
+        transform: Optional[Transform] = None,
+    ):
 
         super().__init__(
             transform = transform
@@ -99,19 +98,19 @@ class Precomputed(Relations):
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs
-        ) -> pdreld.RelationData:
+    ) -> pdreld.RelationData:
         """Obtain the precomputed relations.
 
         Args:
             X: Ignored, since relations are already precomputed.
 
         Returns:
-            A RelationData instance containing the (possibly
-            transformed) relations.
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) relations.
         """
 
         if X is not None:
-            warnings.warn('Ignoring input for precomputed relations.')
+            warnings.warn("Ignoring input for precomputed relations.")
         
         return self.relations
 
@@ -121,24 +120,25 @@ class PDist(Relations):
     
     Args:
         metric: The distance metric to be used.
-        transform: A single transform or list of transforms
-            to be applied to the relations.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform`s to be applied to the
+            relations.
         keep_result: Specifies whether or not to keep previously
             calculated distances, rather than computing new ones.
         verbose: Verbosity toggle.
 
     Attributes:
-        relations: A RelationData instance containing the (possibly
-        transformed) pairwise distances. Available only after
-        calling :meth:`compute_relations`.
+        relations: A :class:`paradime.relationdata.RelationData` instance
+            containing the (possibly transformed) pairwise distances.
+            Available only after calling :meth:`compute_relations`.
     """
  
     def __init__(self,
         metric: Optional[Metric] = None,
         transform: Optional[Transform] = None,
         keep_result = True,
-        verbose: bool = False
-        ) -> None:
+        verbose: bool = False,
+    ):
 
         if metric is None:
             metric = 'euclidean'
@@ -154,32 +154,32 @@ class PDist(Relations):
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs
-        ) -> pdreld.RelationData:
+    ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
 
         Args:
             X: Input data tensor with one sample per row.
 
         Returns:
-            A RelationData instance containing the (possibly
-            transformed) pairwise distances.
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) pairwise distances.
         """
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed relations.'
+                "Missing input for non-precomputed relations."
             )
 
         X = pdutils._convert_input_to_numpy(X)
 
         if self._relations is None or not self.keep_result:
             if self.verbose:
-                pdutils.report('Calculating pairwise distances.')
+                pdutils.report("Calculating pairwise distances.")
             self.relations = self._transform(
                 pdreld.relation_factory(pdist(X, metric=self.metric))
             )
         elif self.verbose:
-            pdutils.report('Using previously calculated distances.')
+            pdutils.report("Using previously calculated distances.")
 
         return self.relations
 
@@ -190,27 +190,28 @@ class NeighborBasedPDist(Relations):
     
     Args:
         n_neighbors: Number of nearest neighbors to be considered.
-            If not specified, this will be set to 5 percent of the
-            data points. If the transforms include any perplexity-based
-            ones, this parameter will be overridden according to the
-            highest perplexity.
+            If not specified, this will be set to 5 percent of the number of
+            data points. If the transforms include any
+            :class:`paradime.transforms.AdaptiveNeighborhoodRescale` instances,
+            this parameter will be overridden according to their parameters.
         metric: The distance metric to be used.
-        transform: A single transform or list of transforms
-            to be applied to the relations.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform`s to be applied to the
+            relations.
         verbose: Verbosity toggle.
 
     Attributes:
-        relations: A RelationData instance containing the (possibly
-        transformed) pairwise distances. Available only after
-        calling :meth:`compute_relations`.
+        relations: A :class:`paradime.relationdata.RelationData` instance
+            containing the (possibly transformed) pairwise distances.
+            Available only after calling :meth:`compute_relations`.
     """
 
     def __init__(self,
         n_neighbors: Optional[int] = None,
         metric: Optional[Metric] = None,
         transform: Optional[Transform] = None,
-        verbose: bool = False
-        ) -> None:
+        verbose: bool = False,
+    ):
 
         super().__init__(
             transform=transform
@@ -262,20 +263,20 @@ class NeighborBasedPDist(Relations):
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs
-        ) -> pdreld.RelationData:
+    ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
 
         Args:
             X: Input data tensor with one sample per row.
 
         Returns:
-            A RelationData instance containing the (possibly
-            transformed) pairwise distances.
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) pairwise distances.
         """
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed relations.'
+                "Missing input for non-precomputed relations."
             )
 
         X = pdutils._convert_input_to_numpy(X)
@@ -284,7 +285,7 @@ class NeighborBasedPDist(Relations):
         assert self.n_neighbors is not None
         
         if self.verbose:
-            pdutils.report('Indexing nearest neighbors.')
+            pdutils.report("Indexing nearest neighbors.")
 
         if self.metric is None:
             self.metric = 'euclidean'
@@ -309,16 +310,17 @@ class DifferentiablePDist(Relations):
     
     Args:
         p: Parameter that specificies which p-norm to use as
-            a distance function. Ignored if `metric` is set.
+            a distance function. Ignored if :param:`metric` is set.
         metric: The distance metric to be used.
-        transform: A single transform or list of transforms
-            to be applied to the relations.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform`s to be applied to the
+            relations.
         verbose: Verbosity toggle.
 
     Attributes:
-        relations: A RelationData instance containing the (possibly
-        transformed) pairwise distances. Available only after
-        calling :meth:`compute_relations`.
+        relations: A :class:`paradime.relationdata.RelationData` instance
+            containing the (possibly transformed) pairwise distances.
+            Available only after calling :meth:`compute_relations`.
     """
 
     def __init__(self,
@@ -326,8 +328,8 @@ class DifferentiablePDist(Relations):
         metric: Optional[Callable[
             [torch.Tensor, torch.Tensor],
             torch.Tensor]] = None,
-        transform: Optional[Transform] = None
-        ) -> None:
+        transform: Optional[Transform] = None,
+    ):
 
         super().__init__(
             transform=transform
@@ -339,28 +341,30 @@ class DifferentiablePDist(Relations):
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs
-        ) -> pdreld.RelationData:
-        """Calculates the pairwise distances. If :param:`metric` is
-        not None, flexible memory-inefficient implementation
-        is used instead of PyTorch's `pdist`.
+    ) -> pdreld.RelationData:
+        """Calculates the pairwise distances.
+        
+        If :param:`metric` is not None, a flexible but memory-inefficient
+        implementation is used instead of PyTorch's
+        :method:`torch.nn.functional.pdist`.
 
         Args:
             X: Input data tensor with one sample per row.
 
         Returns:
-            A RelationData instance containing the (possibly
-            transformed) pairwise distances.
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) pairwise distances.
         """
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed relations.'
+                "Missing input for non-precomputed relations."
             )
 
         if not isinstance(X, torch.Tensor) or not X.requires_grad:
             warnings.warn(
-                'Differentiable pdist operating on tensor ' +
-                'for which no gradients are computed.'
+                "Differentiable pdist operating on tensor "
+                "for which no gradients are computed."
             )
 
         X = pdutils._convert_input_to_torch(X)
@@ -398,13 +402,14 @@ class DistsFromTo(Relations):
     
     Args:
         metric: The distance metric to be used.
-        transform: A single transform or list of transforms
-            to be applied to the relations.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform`s to be applied to the
+            relations.
 
     Attributes:
-        relations: A RelationData instance containing the (possibly
-            transformed) pairwise distances. Available only after
-            calling :meth:`compute_relations`.
+        relations: A :class:`paradime.relationdata.RelationData` instance
+            containing the (possibly transformed) pairwise distances.
+            Available only after calling :meth:`compute_relations`.
     """
  
     def __init__(self,
@@ -412,7 +417,7 @@ class DistsFromTo(Relations):
             [torch.Tensor, torch.Tensor],
             torch.Tensor]] = None,
         transform: Optional[Transform] = None,
-        ) -> None:
+    ):
 
         if metric is None:
             metric = (lambda a, b: torch.norm(a - b, dim=1))
@@ -426,7 +431,7 @@ class DistsFromTo(Relations):
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs
-        ) -> pdreld.RelationData:
+    ) -> pdreld.RelationData:
         """Calculates the distances.
 
         Args:
@@ -434,13 +439,13 @@ class DistsFromTo(Relations):
                 of pairs of data points.
 
         Returns:
-            A RelationData instance containing the (possibly
-            transformed) pairwise distances.
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) pairwise distances.
         """
 
         if X is None:
             raise ValueError(
-                'Missing input for non-precomputed relations.'
+                "Missing input for non-precomputed relations."
             )
 
         X = pdutils._convert_input_to_torch(X)

@@ -17,21 +17,23 @@ class RelationData():
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         """Subsamples the relation matrix based on item indices.
+
+        Intended to be used for batch-wise subsampling of global relations.
         
         Args:
             indices: A flat list of item indices.
             
         Returns:
             A square PyTorch tensor consisting of all relations
-            between items with the given indices, intended to be
-            used for batch-wise subsampling of global relations.
+            between items with the given indices.
         """
         raise NotImplementedError(
             f"Matrix subsampling not implemented for {type(self).__name__}."
         )
 
     def to_flat_array(self) -> 'FlatRelationArray':
-        """Converts the relations to a :class:`FlatRelationArray`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.FlatRelationArray`.
         
         Returns:
             The converted relations.
@@ -42,7 +44,8 @@ class RelationData():
         )
 
     def to_flat_tensor(self) -> 'FlatRelationTensor':
-        """Converts the relations to a :class:`FlatRelationTensor`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.FlatRelationTensor`.
         
         Returns:
             The converted relations.
@@ -53,7 +56,8 @@ class RelationData():
         )
 
     def to_square_array(self) -> 'SquareRelationArray':
-        """Converts the relations to a :class:`SquareRelationArray`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.SquareRelationArray`.
         
         Returns:
             The converted relations.
@@ -64,7 +68,8 @@ class RelationData():
         )
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
-        """Converts the relations to a :class:`SquareRelationTensor`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.SquareRelationTensor`.
         
         Returns:
             The converted relations.
@@ -75,7 +80,8 @@ class RelationData():
         )
 
     def to_triangular_array(self) -> 'TriangularRelationArray':
-        """Converts the relations to a :class:`TriangularRelationArray`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.TriangularRelationArray`.
         
         Returns:
             The converted relations.
@@ -86,7 +92,8 @@ class RelationData():
         )
 
     def to_triangular_tensor(self) -> 'TriangularRelationTensor':
-        """Converts the relations to a :class:`TriangularRelationTensor`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.TriangularRelationTensor`.
         
         Returns:
             The converted relations.
@@ -97,7 +104,8 @@ class RelationData():
         )
     
     def to_neighbor_tuple(self) -> 'NeighborRelationTuple':
-        """Converts the relations to a :class:`NeighborRelationTuple`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.NeighborRelationTuple`.
         
         Returns:
             The converted relations.
@@ -108,7 +116,8 @@ class RelationData():
         )
 
     def to_sparse_array(self) -> 'SparseRelationArray':
-        """Converts the relations to a :class:`SparseRelationArray`.
+        """Converts the relations to a
+        :class:`paradime.relationdata.SparseRelationArray`.
         
         Returns:
             The converted relations.
@@ -121,9 +130,10 @@ class RelationData():
 
 def relation_factory(
     relations: Rels,
-    force_flat: bool = False
+    force_flat: bool = False,
 ) -> RelationData:
-    """Creates a :class:`RelationData` object from a variety of input formats.
+    """Creates a :class:`paradime.relationdata.RelationData` object from a
+    variety of input formats.
     
     Args:
         relations: The relations, specified either as a flat array or tensor,
@@ -136,8 +146,8 @@ def relation_factory(
             to a triangular number.
     
     Returns:
-        A :class:`RelationData` object with a subclass depending on the
-        input format.
+        A :class:`paradime.relationdata.RelationData` object with a subclass
+        depending on the input format.
     """
 
     if _is_square_array(relations):
@@ -158,7 +168,7 @@ def relation_factory(
         rd = NeighborRelationTuple(relations)  # type:ignore
     else:
         raise TypeError(
-            f'Input type not supported by {RelationData.__name__}.')
+            f"Input type not supported by {RelationData.__name__}.")
 
     return rd
 
@@ -166,18 +176,16 @@ class FlatRelationArray(RelationData):
     """Relation data in the form of a flat array of individual relations.
     
     Args:
-        relations: A flat numpy array of relation values.
+        relations: A flat Numpy array of relation values.
 
     Attributes:
         data: The raw relation data.
     """
 
-    def __init__(self,
-        relations: np.ndarray
-        ) -> None:
+    def __init__(self, relations: np.ndarray):
 
         if not _is_flat_array(relations):
-            raise ValueError('Expected vector-form array.')
+            raise ValueError("Expected vector-form array.")
 
         self.data = relations
 
@@ -197,10 +205,10 @@ class FlatRelationTensor(RelationData):
         data: The raw relation data.
     """
 
-    def __init__(self, relations: torch.Tensor) -> None:
+    def __init__(self, relations: torch.Tensor):
 
         if not _is_flat_tensor(relations):
-            raise ValueError('Expected vector-form tensor.')
+            raise ValueError("Expected vector-form tensor.")
 
         self.data = relations
 
@@ -214,16 +222,16 @@ class SquareRelationArray(RelationData):
     """Relation data in the form of a square array.
     
     Args:
-        relations: A square numpy array of relation values.
+        relations: A square Numpy array of relation values.
 
     Attributes:
         data: The raw relation data.
     """
 
-    def __init__(self,relations: np.ndarray) -> None:
+    def __init__(self,relations: np.ndarray):
 
         if not _is_square_array(relations):
-            raise ValueError('Expected square array.')
+            raise ValueError("Expected square array.")
 
         self.data = relations
 
@@ -275,10 +283,10 @@ class SquareRelationTensor(RelationData):
         data: The raw relation data.
     """
 
-    def __init__(self, relations: torch.Tensor) -> None:
+    def __init__(self, relations: torch.Tensor):
 
         if not _is_square_tensor(relations):
-            raise ValueError('Expected square tensor.')
+            raise ValueError("Expected square tensor.")
 
         self.data = relations
 
@@ -329,19 +337,17 @@ class TriangularRelationArray(RelationData):
     """Relation data in 'triangular' vector-form.
     
     Args:
-        relations: A numpy array of relation values, as accepted by
+        relations: A Numpy array of relation values, as accepted by
         :func:`scipy.spatial.distance.squareform`.
 
     Attributes:
         data: The raw relation data.
     """
 
-    def __init__(self, relations: np.ndarray) -> None:
+    def __init__(self, relations: np.ndarray):
 
         if not _is_triangular_array(relations):
-            raise ValueError(
-                'Expected vector-form relation array.'
-            )
+            raise ValueError("Expected vector-form relation array.")
 
         self.data = relations
 
@@ -391,12 +397,10 @@ class TriangularRelationTensor(RelationData):
         data: The raw relation data.
     """
 
-    def __init__(self, relations: torch.Tensor) -> None:
+    def __init__(self, relations: torch.Tensor):
 
         if not _is_triangular_tensor(relations):
-            raise ValueError(
-                'Expected vector-form relation tensor.'
-            )
+            raise ValueError("Expected vector-form relation tensor.")
 
         self.data = relations
 
@@ -446,18 +450,16 @@ class SparseRelationArray(RelationData):
     """Relation data in sparse array form.
     
     Args:
-        relations: A square, sparse scipy array of relation values.
+        relations: A square, sparse Scipy array of relation values.
 
     Attributes:
         data: The raw relation data.
     """
 
-    def __init__(self, rels: scipy.sparse.spmatrix) -> None:
+    def __init__(self, rels: scipy.sparse.spmatrix):
 
         if not _is_square_sparse(rels):
-            raise ValueError(
-                'Expected vector-form relation tensor.'
-            )
+            raise ValueError("Expected vector-form relation tensor.")
 
         self.data = rels
 
@@ -499,7 +501,7 @@ class SparseRelationArray(RelationData):
 
 
 class NeighborRelationTuple(RelationData):
-    """Relation data in neighbord tuple form.
+    """Relation data in neighborhood tuple form.
     
     Args:
         relations: A tuple (n, r) of relation data, where n is an
@@ -514,12 +516,10 @@ class NeighborRelationTuple(RelationData):
     def __init__(self,
         relations: tuple[np.ndarray,np.ndarray],
         sort: Optional[Literal['ascending', 'descending']] = None
-    ) -> None:
+    ):
 
         if not _is_array_tuple(relations):
-            raise ValueError(
-                'Expected tuple of arrays (neighbors, relations).'
-            )
+            raise ValueError("Expected tuple of arrays (neighbors, relations).")
 
         neighbors, rels = relations
 
