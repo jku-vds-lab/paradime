@@ -4,6 +4,7 @@ from typing import Iterable, Union, Callable, Literal, Optional
 from attr import has
 # from grpc import Call
 from numba.core.types.scalars import Boolean
+import copy
 import torch
 import torch.utils.data as td
 import torch.nn as nn
@@ -451,7 +452,7 @@ class ParametricDR():
                 phase settings, see :class:`paradime.dr.TrainingPhase`. 
         """
         if training_phase is not None:
-            self.training_defaults = training_phase
+            self.training_defaults = copy.deepcopy(training_phase)
         if n_epochs is not None:
             self.training_defaults.n_epochs = n_epochs
         if batch_size is not None:
@@ -504,7 +505,7 @@ class ParametricDR():
                 phase settings, see :class:`paradime.dr.TrainingPhase`. 
         """
         if training_phase is None:
-            training_phase = self.training_defaults
+            training_phase = copy.deepcopy(self.training_defaults)
         assert isinstance(training_phase, TrainingPhase)
 
         if name is not None:
@@ -572,7 +573,7 @@ class ParametricDR():
         for k in self.global_relations:
             if self.verbose:
                 pdutils.report(
-                    f"Computing global relations {k}."
+                    f"Computing global relations '{k}'."
                 )
             self.global_relation_data[k] = (
                 self.global_relations[k].compute_relations(
@@ -599,7 +600,7 @@ class ParametricDR():
         if training_phase.sampling == 'negative_edge':
             if training_phase.edge_rel_key not in self.global_relation_data:
                 raise KeyError(
-                    f"Global relations {training_phase.edge_rel_key} "
+                    f"Global relations '{training_phase.edge_rel_key}' "
                     "not specified."
                 )
             edge_dataset = NegSampledEdgeDataset(
@@ -652,10 +653,11 @@ class ParametricDR():
 
         if self.verbose:
             pdutils.report(
-                f"Beginning training phase {training_phase.name}."
+                f"Beginning training phase '{training_phase.name}'."
             )
 
         for epoch in range(training_phase.n_epochs):
+
             running_loss = 0.
             
             batch: dict[str, torch.Tensor]
@@ -674,7 +676,7 @@ class ParametricDR():
                 loss.backward()
                 optimizer.step()
 
-                running_loss += loss.detach().cpu().item()
+                running_loss += training_phase.loss._last  # type: ignore
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
