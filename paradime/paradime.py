@@ -97,7 +97,7 @@ class NegSampledEdgeDataset(td.Dataset):
     original dataset, one of it's actual neighbors, and `r` random other
     items that are considered to not be neighbors of `i`. Remaining data
     from the original dataset is collated using PyTorch's
-    :method:`torch.utils.data.default_collate` method.
+    :func:`torch.utils.data.default_collate` method.
 
     Args:
         data: The data in the form of a ParaDime :class:`paradime.dr.Dataset`.
@@ -272,9 +272,9 @@ class ParametricDR():
             optimized during training.
         dataset: The dataset on which to perform the training, passed either
             as a single numpy array or PyTorch tensor, a dictionary containing
-                multiple arrays and/or tensors, or a
-                :class:`paradime.dr.Dataset` Datasets can be registerd after
-                instantiation using the :meth:`register_dataset` class method.
+            multiple arrays and/or tensors, or a :class:`paradime.dr.Dataset`
+            Datasets can be registerd after instantiation using the
+            :meth:`register_dataset` class method.
         global_relations: A single :class:`paradime.relations.Relations`
             instance or a dictionary with multiple 
             :class:`paradime.relations.Relations` instances. Global relations

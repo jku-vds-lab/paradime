@@ -111,10 +111,6 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
             callable taking the relation values and a fixed value to compare
             the transformed relations against.
         verbose: Verbosity toggle.
-
-    Attributes:
-        param_values: The parameter values determined for each data point.
-            Available only after calling the transform.
     """
 
     def __init__(self,
@@ -134,6 +130,9 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
 
     @property
     def param_values(self) -> np.ndarray:
+        """The parameter values determined for each data point. Available only
+        after calling the transform.
+        """
         if self._param_values is not None:
             return self._param_values
         else:
@@ -522,10 +521,9 @@ class ModifiedCauchyTransform(RelationTransform):
     """Transforms relations based on a modified Cauchy distribution.
 
     This transform applies a modified Cauchy distribution function
-    to the relations. The distribution's parameters :param:`a` and
-    :param:`b` are determined from the parameters :param:`min_dist`
-    and :param:`spread` by fitting a smooth approximation of an offset
-    exponential decay.
+    to the relations. The distribution's parameters `a` and `b` are determined
+    from the parameters `min_dist` and `spread` by fitting a smooth
+    approximation of an offset exponential decay.
     
     Args:
         min_dist: Effective minimum distance of points if the transformed
@@ -609,18 +607,18 @@ class Functional(RelationTransform):
     does not change the data in a way that is incompatible with the
     :class:`paradime.relationdata.RelationData` subclass. The transform can
     also be applied to the whole :class:`paradime.relationdata.RelationData`
-    instance by setting :param:`in_place` to False. In this case, the output
-    is that of the given function.
+    instance by setting `in_place` to False. In this case, the output is that
+    of the given function.
     
     Args:
         f: Function to be applied to the relations.
-        in_place: Toggles whether the function is applied to the
-        :attr:`data` attribute of the
-            :class:`paradime.relationdata.RelationData` object (default), or
-            to the :class:`paradime.relationdata.RelationData` itself.
+        in_place: Toggles whether the function is applied to the :attr:`data`
+            attribute of the :class:`paradime.relationdata.RelationData` object
+            (default), or to the :class:`paradime.relationdata.RelationData`
+            itself.
         check_valid: Toggles whether a check for the transformed relation
-            data's validity is performed. If :param:`in_place` is set to
-            False, no checks are performed regardless of this parameter.
+            data's validity is performed. If `in_place` is set to False, no
+            checks are performed regardless of this parameter.
     """
 
     def __init__(self,

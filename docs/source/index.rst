@@ -1,0 +1,26 @@
+.. paradime documentation master file, created by
+   sphinx-quickstart on Sun Jul 24 17:52:10 2022.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+Welcome to paradime's documentation!
+====================================
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+.. toctree::
+    :maxdepth: 2
+    :caption: API Reference
+
+    api/paradime
+
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

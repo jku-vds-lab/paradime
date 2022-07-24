@@ -75,8 +75,8 @@ class Precomputed(Relations):
         X: The precomputed relations, in a form accepted by
             :func:`paradime.relationdata.relation_factory`.
         transform: A single :class:`paradime.transforms.Transform` or list of
-            :class:`paradime.transforms.Transform`s to be applied to the
-            relations.
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
 
     Attributes:
         relations: A :class:`paradime.relationdata.RelationData` instance
@@ -121,8 +121,8 @@ class PDist(Relations):
     Args:
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
-            :class:`paradime.transforms.Transform`s to be applied to the
-            relations.
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
         keep_result: Specifies whether or not to keep previously
             calculated distances, rather than computing new ones.
         verbose: Verbosity toggle.
@@ -196,8 +196,8 @@ class NeighborBasedPDist(Relations):
             this parameter will be overridden according to their parameters.
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
-            :class:`paradime.transforms.Transform`s to be applied to the
-            relations.
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
         verbose: Verbosity toggle.
 
     Attributes:
@@ -310,11 +310,11 @@ class DifferentiablePDist(Relations):
     
     Args:
         p: Parameter that specificies which p-norm to use as
-            a distance function. Ignored if :param:`metric` is set.
+            a distance function. Ignored if `metric` is set.
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
-            :class:`paradime.transforms.Transform`s to be applied to the
-            relations.
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
         verbose: Verbosity toggle.
 
     Attributes:
@@ -344,9 +344,9 @@ class DifferentiablePDist(Relations):
     ) -> pdreld.RelationData:
         """Calculates the pairwise distances.
         
-        If :param:`metric` is not None, a flexible but memory-inefficient
+        If `metric` is not None, a flexible but memory-inefficient
         implementation is used instead of PyTorch's
-        :method:`torch.nn.functional.pdist`.
+        :func:`torch.nn.functional.pdist`.
 
         Args:
             X: Input data tensor with one sample per row.
@@ -403,8 +403,8 @@ class DistsFromTo(Relations):
     Args:
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
-            :class:`paradime.transforms.Transform`s to be applied to the
-            relations.
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
 
     Attributes:
         relations: A :class:`paradime.relationdata.RelationData` instance

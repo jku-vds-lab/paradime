@@ -338,7 +338,7 @@ class TriangularRelationArray(RelationData):
     
     Args:
         relations: A Numpy array of relation values, as accepted by
-        :func:`scipy.spatial.distance.squareform`.
+            :func:`scipy.spatial.distance.squareform`.
 
     Attributes:
         data: The raw relation data.
@@ -390,8 +390,8 @@ class TriangularRelationTensor(RelationData):
     """Relation data in 'triangular' vector-form.
     
     Args:
-        relations: A PyTorch tensor of relation values, with a
-        shape as accepted by :func:`scipy.spatial.distance.squareform`.
+        relations: A PyTorch tensor of relation values, with a shape as
+            accepted by :func:`scipy.spatial.distance.squareform`.
 
     Attributes:
         data: The raw relation data.
