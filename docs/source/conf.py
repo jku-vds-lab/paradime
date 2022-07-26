@@ -32,6 +32,7 @@ author = 'Andreas Hinterreiter'
 extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
+    'sphinx_autodoc_typehints',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,6 +57,5 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 html_logo = '../../logo/paraDime.svg'
 html_theme_options = {
-    'logo_only': True,
-    
+    'logo_only': True,    
 }
