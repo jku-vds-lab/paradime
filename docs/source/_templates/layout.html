@@ -1,0 +1,71 @@
+{% extends "!layout.html" %}
+  {% block footer %} {{ super() }}
+
+  <style>
+    /* paraDime colors:
+          yellow: #ffcc00
+          turquoise: #23c7a2
+          teal: #1c5c60
+          darkteal: #144447
+          halfway: #209382
+          brighthalfway: #21ad92
+    */
+
+    /* Links */
+    a {
+      color: #23c7a2;
+    }
+    a:hover {
+      color: #23c7a2;
+      text-decoration: underline;
+    }
+    a:visited {
+      color: #209382;
+    }
+
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #efefef;
+    }
+    /* Sear bar */
+    .wy-side-nav-search input[type="text"] {
+      border-color: #1c5c60;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #1c5c60;
+    }
+    .wy-menu-vertical header, .wy-menu-vertical p.caption {
+      color: #ffcc00;
+    }
+    .wy-menu-vertical a {
+      color: white;
+    }
+    .wy-menu-vertical a:hover {
+      background-color: #144447;
+    }
+    .wy-menu-vertical li.current a {
+      color: white;
+      background: #144447;
+      border-right: 0px;
+    }
+    .wy-menu-vertical li.current a:hover {
+      color: white;
+      background: #209382;
+    }
+    .wy-menu-vertical li.current a span.toctree-expand {
+      color: white;
+    }
+    .wy-menu-vertical li.current a:hover span.toctree-expand {
+      color: white;
+    }
+    .wy-menu-vertical li.toctree-l2.current a {
+      color: white;
+      background-color: #21ad92;
+    }
+    .wy-menu-vertical li.toctree-l1.current a {
+      border-bottom: 0px;
+      border-top: 0px;
+    }
+  </style>
+{% endblock %}

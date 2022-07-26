@@ -1,26 +1,18 @@
-.. paradime documentation master file, created by
-   sphinx-quickstart on Sun Jul 24 17:52:10 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+ParaDime: A Framework for Parametric Dimensionality reduction
+=============================================================
 
-Welcome to paradime's documentation!
-====================================
+ParaDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as :ref:`relations` and :ref:`transforms`), so that experimentation with novel DR techniques becomes easy.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide
+
+   building_blocks
 
 .. toctree::
-    :maxdepth: 2
-    :caption: API Reference
+   :maxdepth: 2
+   :caption: API Reference
 
-    api/paradime
+   api/index
 
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
