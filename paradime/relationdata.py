@@ -298,7 +298,7 @@ class SquareRelationTensor(RelationData):
         return self.data[indices[0], indices[1]].reshape(dim, dim)
 
     def to_square_array(self) -> 'SquareRelationArray':
-        return SquareRelationArray(self.data.detach().numpy())
+        return SquareRelationArray(self.data.detach().cpu().numpy())
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
         return self

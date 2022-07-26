@@ -93,7 +93,7 @@ class NegSampledEdgeDataset(td.Dataset):
     negative sampling from a regular :class:Dataset. The passed relation
     data, along with the negative samplnig rate `r`, is used to inform the
     negative sampling process. Each \"item\" `i` of the resulting dataset
-    is essentially a small batch of items, including the `i`th item of the
+    is essentially a small batch of items, including the item `i` of the
     original dataset, one of it's actual neighbors, and `r` random other
     items that are considered to not be neighbors of `i`. Remaining data
     from the original dataset is collated using PyTorch's
@@ -683,6 +683,8 @@ class ParametricDR():
                 pdutils.report(
                     f"Loss after epoch {epoch}: {running_loss}"
                 )
+
+            self.trained = True
     
     def train(self) -> None:
         """Runs all training phases of a parametric dimensionality reduction
