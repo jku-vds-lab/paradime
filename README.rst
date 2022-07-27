@@ -5,29 +5,27 @@ paraDime is a modular framework for specifying and training parametric dimension
 
 Here you can see a parametric version of t-SNE [1]_ trained on a subset of 5000 images of handwritten digits from the MNIST dataset [2]_:
 
-.. image:: images/teaser-1.png
+.. image:: docs/source/images/teaser-1.png
    :width: 500px
    :align: center
    :alt: Parametric t-SNE of a subset of the MNIST image dataset
 
 The rest of the 60,000 images can then be easily embedded into the same space without retraining the t-SNE:
 
-.. image:: images/teaser-2.png
+.. image:: docs/source/images/teaser-2.png
    :width: 500px
    :align: center
    :alt: Remaining MNIST data embedded into the existing low-dimensional space
 
-.. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+Installation
+============
 
-   building_blocks
+TODO
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
+Example
+=======
 
-   api/index
+TODO
 
 References
 ==========
