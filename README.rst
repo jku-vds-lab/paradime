@@ -30,6 +30,6 @@ TODO
 References
 ==========
 
-.. [1] L. Van Der Maaten, G. Hinton. `“Visualizing data using t-SNE” <http://www.jmlr.org/papers/volume9/vandermaaten08a/vandermaaten08a.pdf>`__, Journal of Machine Learning Research (2008).
+.. [1] Van Der Maaten, L., Hinton, G. `“Visualizing data using t-SNE” <http://www.jmlr.org/papers/volume9/vandermaaten08a/vandermaaten08a.pdf>`__, Journal of Machine Learning Research (2008).
 
-.. [2] Y. LeCun, C. Cortes, C.J.C. Burges, `“The MNIST database of handwritten digits” <http://yann.lecun.com/exdb/mnist/>`__ (1998).
+.. [2] LeCun, Y., Cortes, C., Burges, C.J.C. `“The MNIST database of handwritten digits” <http://yann.lecun.com/exdb/mnist/>`__ (1998).
