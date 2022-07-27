@@ -1,7 +1,7 @@
 paraDime: A Framework for Parametric Dimensionality Reduction
 =============================================================
 
-paraDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as :ref:`relations` and :ref:`transforms`), so that experimentation with novel DR techniques becomes easy.
+paraDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as the relations between data points), so that experimentation with novel DR techniques becomes easy.
 
 Here you can see a parametric version of t-SNE [1]_ trained on a subset of 5000 images of handwritten digits from the MNIST dataset [2]_:
 
