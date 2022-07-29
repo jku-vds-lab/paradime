@@ -640,6 +640,15 @@ class ParametricDR():
 
         return optimizer
 
+    def _prepare_training(self) -> None:
+        """Dummy method to inject code between instantiation and training.
+        
+        To be overwritten by subclasses. This allows, e.g., to add default
+        training phases outside of a subclass's `__init__` but before calling
+        the instance's :meth:`train` method.
+        """
+        pass
+
     def run_training_phase(self,
         training_phase: TrainingPhase
     ) -> None:
@@ -689,7 +698,8 @@ class ParametricDR():
     def train(self) -> None:
         """Runs all training phases of a parametric dimensionality reduction
         routine.
-        """        
+        """
+        self._prepare_training()
         self._compute_global_relations()
         for tp in self.training_phases:
             self.run_training_phase(tp)
