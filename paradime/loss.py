@@ -349,3 +349,27 @@ class CompoundLoss(Loss):
         self._last_detailed = tuple(losses)
 
         return total_loss
+
+def kullback_leibler_div(
+    p: torch.Tensor,
+    q: torch.Tensor,
+    epsilon: float = 1.0e-7
+) -> torch.Tensor:
+    """Kullback-Leibler divergence.
+    
+    To be used as a loss function in the :class:`paradime.loss.RelationLoss`
+    of a parametric DR routine.
+    
+    Args:
+        p: Input tensor containing (a batch of) probabilities.
+        q: Input tensor containing (a batch of) probabilities.
+        epsilon: Small constant used to avoid numerical errors caused by
+            near-zero probability values.
+            
+    Returns:
+        The Kullback-Leibler divergence of the two input tensors.
+    """
+    eps = torch.tensor(epsilon, dtype=p.dtype)
+    kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
+    kl_matr.fill_diagonal_(0.)    
+    return torch.sum(kl_matr)
