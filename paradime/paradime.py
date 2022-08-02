@@ -633,7 +633,7 @@ class ParametricDR():
                     "not specified."
                 )
             if training_phase.batches_per_epoch == -1:
-                num_edges = training_phase.batch_size
+                num_edges = max(training_phase.batch_size, len(self.dataset))
             else:
                 num_edges = (training_phase.batch_size
                     * training_phase.batches_per_epoch)
