@@ -137,7 +137,7 @@ class RelationLoss(Loss):
             loss = self.loss_function(
                 batch[self.global_relation_key].to(device),
                 batch_relations[self.batch_relation_key].compute_relations(
-                    batch[self.data_key].to(device)
+                    model.embed(batch[self.data_key].to(device))
                 ).data
             )
         else:

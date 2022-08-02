@@ -118,19 +118,19 @@ class NegSampledEdgeDataset(td.Dataset):
         self.neg_sampling_rate = neg_sampling_rate
 
     def __len__(self) -> int:
-        return len(self.p_ij.data)
+        return len(self.dataset)
     
     def __getitem__(self,
         idx: int
     ) -> dict[str, torch.Tensor]:
-        # make nsr+1 copies of row index
+        # make nsr + 1 copies of row index
         rows = torch.full(
             (self.neg_sampling_rate + 1,),
             self.p_ij.row[idx],
             dtype=torch.long
         )
 
-        # pick nsr+1 random col indices (negative samples)
+        # pick nsr + 1 random col indices (negative samples)
         cols = torch.randint(
             self.p_ij.shape[0],
             (self.neg_sampling_rate + 1,),
@@ -181,14 +181,18 @@ def _collate_edge_batch(
     }
 
     for k in raw_batch[0]:
-        if k not in ['row', 'col', 'rel']:
+        if k in ['row', 'col', 'rel']:
             collated_batch[k] = torch.concat(
                 [ i[k] for i in raw_batch]
-            )[torch.tensor(unique_ids)]
+            )
+        elif k == 'from_to_data':
+            collated_batch[k] = torch.concat(
+                [ i[k] for i in raw_batch], dim=1
+            )
         else:
             collated_batch[k] = torch.concat(
                 [ i[k] for i in raw_batch ]
-            )
+            )[torch.tensor(unique_ids)]
     
     return collated_batch
 
@@ -199,10 +203,27 @@ class TrainingPhase():
 
     Args:
         name: The name of the training phase.
-        n_epochs: The number of epochs to run in this phase.
-        batch_size: The number of items in a batch. In the case of negative
-            edge sampling, the actual number of items per batch is roughly
-            `r + 1` times more, where `r` is the negative sampling rate.
+        n_epochs: The number of epochs to run in this phase. In standard
+            item-based sampling, the model sees every item once per epoch
+            In the case of negative edge sampling, this is not guaranteed, and
+            an epoch instead comprises `batches_per_epoch` batches (see
+            parameter description below).
+        batch_size: The number of items/edges in a batch. In standard
+            item-based sampling, a batch has this many items, and the edges 
+            used for batch relations are constructed from the items. In the
+            case of negative edge sampling, this is the number of sampled
+            *positive* edges. The total number of edges is higher by a factor
+            of `r + 1`, where `r` is the negative sampling rate. The same holds
+            for the number of items (apart from possible duplicates, which can
+            result from the edge sampling and are removed).
+        batches_per_epoch: The number of batches per epoch. This parameter
+            only has an effect for negative edge sampling, where the number
+            of batches per epoch is not determined by the dataset size and the
+            batch size. If this parameter is set to -1 (default), an epoch
+            will comprise a number of batches that leads to a total number of
+            sampled *items* roughly equal to the number of items in the
+            dataset. If this parameter is set to an integer, an epoch will
+            instead comprise that many batches.
         sampling: The sampling strategy, which can be either `standard`
             (simple item-based sampling; default) or `negative_edge`
             (negative edge sampling).
@@ -223,6 +244,7 @@ class TrainingPhase():
         name: Optional[str] = None,
         n_epochs: int = 5,
         batch_size: int = 50,
+        batches_per_epoch: int = -1,
         sampling: Literal['standard', 'negative_edge'] = 'standard',
         edge_rel_key: str = 'rel',
         neg_sampling_rate: int = 5,
@@ -236,6 +258,7 @@ class TrainingPhase():
         self.name = name
         self.n_epochs = n_epochs
         self.batch_size = batch_size
+        self.batches_per_epoch = batches_per_epoch
         self.sampling = sampling
         if self.sampling not in ['standard', 'negative_edge']:
             raise ValueError(
@@ -427,6 +450,7 @@ class ParametricDR():
         training_phase: Optional[TrainingPhase] = None,
         n_epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
+        batches_per_epoch: Optional[int] = None,
         sampling: Optional[Literal['standard', 'negative_edge']] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
@@ -457,6 +481,8 @@ class ParametricDR():
             self.training_defaults.n_epochs = n_epochs
         if batch_size is not None:
             self.training_defaults.batch_size = batch_size
+        if batches_per_epoch is not None:
+            self.training_defaults.batch_size = batches_per_epoch
         if sampling is not None:
             self.training_defaults.sampling = sampling
         if edge_rel_key is not None:
@@ -482,6 +508,7 @@ class ParametricDR():
         name: Optional[str] = None,
         n_epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
+        batches_per_epoch: Optional[int] = None,
         sampling: Optional[Literal['standard', 'negative_edge']] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
@@ -514,6 +541,8 @@ class ParametricDR():
             training_phase.n_epochs = n_epochs
         if batch_size is not None:
             training_phase.batch_size = batch_size
+        if batches_per_epoch is not None:
+            training_phase.batches_per_epoch = batches_per_epoch
         if sampling is not None:
             training_phase.sampling = sampling
         if edge_rel_key is not None:
@@ -603,6 +632,11 @@ class ParametricDR():
                     f"Global relations '{training_phase.edge_rel_key}' "
                     "not specified."
                 )
+            if training_phase.batches_per_epoch == -1:
+                num_edges = training_phase.batch_size
+            else:
+                num_edges = (training_phase.batch_size
+                    * training_phase.batches_per_epoch)
             edge_dataset = NegSampledEdgeDataset(
                 self.dataset,
                 self.global_relation_data[training_phase.edge_rel_key],
@@ -610,7 +644,7 @@ class ParametricDR():
             )
             sampler = td.WeightedRandomSampler(
                 edge_dataset.weights,
-                num_samples=training_phase.batch_size
+                num_samples=num_edges
             )
             dataloader = td.DataLoader(
                 edge_dataset,

@@ -331,9 +331,9 @@ class Symmetrize(RelationTransform):
             (Hadamard) product.
     """
 
-    def __init__(self, subtract_prodcut: bool = False):
+    def __init__(self, subtract_product: bool = False):
         super().__init__()
-        self.subtract_product = subtract_prodcut
+        self.subtract_product = subtract_product
 
     def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
 
