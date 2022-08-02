@@ -123,6 +123,9 @@ class NegSampledEdgeDataset(td.Dataset):
     def __getitem__(self,
         idx: int
     ) -> dict[str, torch.Tensor]:
+        # the following assumes that the input relations are symmetric.
+        # if they are not, the rows and cols should be shuffled
+
         # make nsr + 1 copies of row index
         rows = torch.full(
             (self.neg_sampling_rate + 1,),
@@ -293,6 +296,14 @@ class ParametricDR():
     Args:
         model: The PyTorch :class:`torch.nn.module` whose parameters are
             optimized during training.
+        in_dim: The numer of dimensions of the input data, used to construct a
+            default model in case none is specified. If a dataset is specified
+            at instantiation, the correct value for this parameter will be
+            inferred from the data dimensions.
+        out_dim: The number of output dimensions (i.e., the dimensionality of
+            the embedding).
+        hidden_dims: Dimensions of hidden layers for the default fully
+            connected model that is created if no model is specified.
         dataset: The dataset on which to perform the training, passed either
             as a single numpy array or PyTorch tensor, a dictionary containing
             multiple arrays and/or tensors, or a :class:`paradime.dr.Dataset`
@@ -330,7 +341,10 @@ class ParametricDR():
     """
 
     def __init__(self,
-        model: pdmod.Model,
+        model: Optional[torch.nn.Module] = None,
+        in_dim: Optional[int] = None,
+        out_dim: int = 2,
+        hidden_dims: list[int] = [100, 50],
         dataset: Optional[Union[Data, Dataset]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
@@ -340,12 +354,34 @@ class ParametricDR():
         verbose: bool = False,
     ):
 
-        self.model = model
-
-        self.dataset: Optional[Dataset] = None
+        self._dataset: Optional[Dataset] = None
         self._dataset_registered = False
         if dataset is not None:
-            self.register_dataset(dataset)        
+            self.register_dataset(dataset)
+
+        self.model: torch.nn.Module
+
+        if model is None:
+            if in_dim is None and not self._dataset_registered:
+                raise ValueError(
+                    "A value for 'in_dim' must be given if no model or "
+                    "dataset is specified."
+                )
+            elif in_dim is None:
+                try:
+                    in_dim = self.dataset.data['data'].shape[-1]
+                except:
+                    raise ValueError(
+                        "Failed to infer data dimensionality from dataset."
+                    )
+                else:
+                    self.model = pdmod.FullyConnectedEmbeddingModel(
+                        in_dim,
+                        out_dim,
+                        hidden_dims,
+                    )
+        else:
+            self.model = model
 
         # TODO: check relation input for validity
         if isinstance(global_relations, pdrel.Relations):
@@ -388,6 +424,15 @@ class ParametricDR():
         self.trained = False
 
         self.verbose = verbose
+
+    @property
+    def dataset(self) -> Dataset:
+        if isinstance(self._dataset, Dataset):
+            return self._dataset
+        else:
+            raise pdexc.NoDatasetRegisteredError(
+                "Attempted to access a dataset, but none was registered."
+            )
 
     def __call__(self,
         X: Tensor
@@ -585,9 +630,9 @@ class ParametricDR():
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
         if isinstance(dataset, Dataset):
-            self.dataset = dataset
+            self._dataset = dataset
         else:
-            self.dataset = Dataset(dataset)
+            self._dataset = Dataset(dataset)
 
         self._dataset_registered = True
 
@@ -737,14 +782,3 @@ class ParametricDR():
         self._compute_global_relations()
         for tp in self.training_phases:
             self.run_training_phase(tp)
-
-                
-                
-                
-
-
-
-
-
-
-

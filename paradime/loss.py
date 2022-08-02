@@ -373,3 +373,28 @@ def kullback_leibler_div(
     kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
     kl_matr.fill_diagonal_(0.)    
     return torch.sum(kl_matr)
+
+def cross_entropy_loss(
+    p: torch.Tensor,
+    q: torch.Tensor,
+    epsilon: float = 1.0e-7
+) -> torch.Tensor:
+    """Cross-entropy loss as used by UMAP.
+    
+    To be used as a loss function in the :class:`paradime.loss.RelationLoss`
+    of a parametric DR routine.
+    
+    Args:
+        p: Input tensor containing (a batch of) probabilities.
+        q: Input tensor containing (a batch of) probabilities.
+        epsilon: Small constant used to avoid numerical errors caused by
+            near-zero probability values.
+            
+    Returns:
+        The cross-entropy loss of the two input tensors.
+    """
+    attraction = -1 * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
+    repulsion = -1 * (1 - p) * torch.log(
+        torch.clamp(1 - q, min=epsilon, max=1.0))
+    loss = attraction + repulsion
+    return torch.sum(loss)

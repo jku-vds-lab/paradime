@@ -25,6 +25,12 @@ class ParametricTSNE(prdm.ParametricDR):
       followed by :class:`paradime.transform.Normalize`.
     
     Args:
+        perplexity: The desired perplexity, which can be understood as
+            a smooth measure of nearest neighbors used to determine
+            high-dimensional relations between data points.
+        alpha: Degrees of freedom of the Student's t-disitribution used to
+            calculate low-dimensional relations between data points.
+        model: The model used to embed the high dimensional data.
         in_dim: The numer of dimensions of the input data, used to construct a
             default model in case none is specified. If a dataset is specified
             at instantiation, the correct value for this parameter will be
@@ -33,12 +39,6 @@ class ParametricTSNE(prdm.ParametricDR):
             the embedding).
         hidden_dims: Dimensions of hidden layers for the default fully
             connected model that is created if no model is specified.
-        perplexity: The desired perplexity, which can be understood as
-            a smooth measure of nearest neighbors used to determine
-            high-dimensional relations between data points.
-        model: The model used to embed the high dimensional data.
-        alpha: Degrees of freedom of the Student's t-disitribution used to
-            calculate low-dimensional relations between data points.
         initialization: How to pretrain the model to mimic initialization of
             low-dimensional positions. By default (`'pca'`) the model is
             pretrained to output an approximation of PCA before beginning the
@@ -56,12 +56,12 @@ class ParametricTSNE(prdm.ParametricDR):
     """
 
     def __init__(self,
+        perplexity: float = 30.,
+        alpha: float = 1.,
+        model: Optional[pdmod.Model] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
-        hidden_dims: list[int] = [100, 50],
-        perplexity: float = 30.,
-        model: Optional[pdmod.Model] = None,
-        alpha: float = 1.,
+        hidden_dims: list[int] = [100, 50],        
         initialization: Optional[str] = 'pca',
         epochs: int = 30,
         init_epochs: int = 5,
@@ -71,35 +71,6 @@ class ParametricTSNE(prdm.ParametricDR):
         use_cuda: bool = False,
         verbose: bool = False,
     ):
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.hidden_dims = hidden_dims
-        if in_dim is None:
-            if model is None and dataset is None:
-                raise ValueError(
-                    "A value for 'in_dim' must be given if no model or "
-                    "dataset is specified."
-                )
-            elif model is None and dataset is not None:
-                if isinstance(dataset, (np.ndarray, torch.Tensor)):
-                    self.in_dim = dataset[0].shape[-1]
-                elif isinstance(dataset, dict):
-                    self.in_dim = dataset[data_key][0].shape[-1]
-                elif isinstance(dataset, prdm.Dataset):
-                    self.in_dim = dataset[0][data_key].shape[-1]
-        if model is None:
-            if isinstance(self.in_dim, int):
-                self.model = pdmod.FullyConnectedEmbeddingModel(
-                    self.in_dim,
-                    self.out_dim,
-                    self.hidden_dims
-                )
-            else:
-                raise ValueError(
-                    "Could not infer 'in_dim' from dataset."
-                )
-        else:
-            self.model = model
         self.perplexity = perplexity
         self.alpha = alpha
         # TODO: change type hint of alpha to Union[float, torch.Tensor]
@@ -113,7 +84,7 @@ class ParametricTSNE(prdm.ParametricDR):
         global_rel = pdrel.NeighborBasedPDist(
             transform=[
                 pdtf.PerplexityBasedRescale(
-                    perplexity=perplexity
+                    perplexity=self.perplexity
                 ),
                 pdtf.Symmetrize(),
             ]
@@ -126,8 +97,11 @@ class ParametricTSNE(prdm.ParametricDR):
             ]
         )
         super().__init__(
-            self.model,
-            dataset,
+            model=model,
+            in_dim=in_dim,
+            out_dim=out_dim,
+            hidden_dims=hidden_dims,
+            dataset=dataset,
             global_relations=global_rel,
             batch_relations=batch_rel,
             use_cuda=use_cuda,
