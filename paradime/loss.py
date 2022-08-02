@@ -393,8 +393,8 @@ def cross_entropy_loss(
     Returns:
         The cross-entropy loss of the two input tensors.
     """
-    attraction = -1 * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
-    repulsion = -1 * (1 - p) * torch.log(
+    attraction = -1. * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
+    repulsion = -1. * (1. - p) * torch.log(
         torch.clamp(1 - q, min=epsilon, max=1.0))
     loss = attraction + repulsion
     return torch.sum(loss)

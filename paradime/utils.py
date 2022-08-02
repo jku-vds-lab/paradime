@@ -36,9 +36,9 @@ def _convert_input_to_torch(X: Union[Tensor, list[float]]) -> torch.Tensor:
         pass
     elif isinstance(X, scipy.sparse.spmatrix):
         # TODO: conserve sparseness
-        X = torch.tensor(X.toarray())
+        X = torch.tensor(X.toarray(), dtype=torch.float)
     elif isinstance(X, (np.ndarray, list)):
-        X = torch.tensor(X)
+        X = torch.tensor(X, dtype=torch.float)
     else:
         raise TypeError(f"Input type {type(X)} not supported")
 

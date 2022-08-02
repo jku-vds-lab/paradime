@@ -354,6 +354,8 @@ class ParametricDR():
         verbose: bool = False,
     ):
 
+        self.verbose = verbose
+
         self._dataset: Optional[Dataset] = None
         self._dataset_registered = False
         if dataset is not None:
@@ -367,18 +369,20 @@ class ParametricDR():
                     "A value for 'in_dim' must be given if no model or "
                     "dataset is specified."
                 )
-            elif in_dim is None:
+            elif in_dim is None and isinstance(self.dataset, Dataset):
                 try:
                     in_dim = self.dataset.data['data'].shape[-1]
-                except:
-                    raise ValueError(
+                except KeyError:
+                    pass
+            if isinstance(in_dim, int):
+                self.model = pdmod.FullyConnectedEmbeddingModel(
+                    in_dim,
+                    out_dim,
+                    hidden_dims,
+            )
+            else:
+                raise KeyError(
                         "Failed to infer data dimensionality from dataset."
-                    )
-                else:
-                    self.model = pdmod.FullyConnectedEmbeddingModel(
-                        in_dim,
-                        out_dim,
-                        hidden_dims,
                     )
         else:
             self.model = model
@@ -422,8 +426,6 @@ class ParametricDR():
             break
 
         self.trained = False
-
-        self.verbose = verbose
 
     @property
     def dataset(self) -> Dataset:
@@ -618,9 +620,7 @@ class ParametricDR():
         
         self.training_phases.append(training_phase)
 
-    def register_dataset(self,
-        dataset: Union[Data, Dataset]
-    ) -> None:
+    def register_dataset(self, dataset: Union[Data, Dataset]) -> None:
         """Registers a dataset for a parametric dimensionality reduction
         routine.
         
@@ -629,12 +629,37 @@ class ParametricDR():
                 tensor, a dictionary containing multiple arrays and/or
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
+        if self.verbose:
+            pdutils.report("Registering dataset.")
         if isinstance(dataset, Dataset):
             self._dataset = dataset
         else:
             self._dataset = Dataset(dataset)
 
         self._dataset_registered = True
+
+    def add_to_dataset(self, data: dict[str, Tensor]) -> None:
+        """Adds additional data entries to an existing dataset.
+        
+        Useful for injecting additional data entries that can be derived from
+        other data, so that they don't have to be added manually (e.g., PCA
+        for pretraining routines).
+        
+        Args:
+            data: A dict containing the data tensors to be added to the
+                dataset.
+        """
+        if not self._dataset_registered:
+            raise pdexc.NoDatasetRegisteredError(
+                "Cannot inject additional data before registering a dataset."
+            )
+        for k in data:
+            if self.verbose:
+                if hasattr(self.dataset, k):
+                    pdutils.report(f"Overwriting entry '{k}' in dataset.")
+                else:
+                    pdutils.report(f"Adding entry '{k}' to dataset.")
+            self.dataset.data[k] = pdutils._convert_input_to_torch(data[k])
 
     def _compute_global_relations(self) -> None:
 
@@ -678,7 +703,11 @@ class ParametricDR():
                     "not specified."
                 )
             if training_phase.batches_per_epoch == -1:
-                num_edges = max(training_phase.batch_size, len(self.dataset))
+                num_edges = max(
+                    training_phase.batch_size,
+                    int(np.ceil(len(self.dataset)
+                        / (training_phase.neg_sampling_rate + 1)))
+                )
             else:
                 num_edges = (training_phase.batch_size
                     * training_phase.batches_per_epoch)

@@ -73,6 +73,7 @@ class ParametricTSNE(prdm.ParametricDR):
     ):
         self.perplexity = perplexity
         self.alpha = alpha
+        self.out_dim = out_dim
         # TODO: change type hint of alpha to Union[float, torch.Tensor]
         # once in-place bug has been fixed
         self.initialization = initialization
@@ -109,20 +110,16 @@ class ParametricTSNE(prdm.ParametricDR):
         )
 
     def _prepare_training(self) -> None:
-        if not self._dataset_registered:
-            raise NoDatasetRegisteredError()
-        self.dataset: prdm.Dataset
         if self.initialization == 'pca':
-            if not hasattr(self.dataset.data, 'pca'):
-                pca = torch.tensor(
-                    sklearn.decomposition.PCA(
-                        n_components=self.out_dim
-                    ).fit_transform(
+            pca = torch.tensor(
+                sklearn.decomposition.PCA(
+                    n_components=self.out_dim
+                ).fit_transform(
                         self.dataset.data[self.data_key]
-                    ),
-                    dtype=torch.float
-                )
-                self.dataset.data['pca'] = pca
+                ),
+                dtype=torch.float
+            )
+            self.add_to_dataset({'pca': pca})
             self.add_training_phase(
                 name="pca_init",
                 loss=pdloss.PositionLoss(
