@@ -20,7 +20,7 @@ Transform = Union[
     list[pdtf.RelationTransform]
 ]
 
-class Relations():
+class Relations(pdutils._ReprMixin):
     """Base class for calculating relations between data points.
     
     Custom relations should subclass this class.
@@ -28,8 +28,9 @@ class Relations():
     
     def __init__(self, transform: Optional[Transform] = None):
         
+        self.transform: list[pdtf.RelationTransform]
         if transform is None:
-            self.transform = transform
+            self.transform = []
         elif not isinstance(transform, list):
             self.transform = [transform]
         else:
@@ -58,20 +59,18 @@ class Relations():
 
     def compute_relations(self,
         X: Optional[Tensor] = None,
-        **kwargs) -> pdreld.RelationData:
+        **kwargs
+    ) -> pdreld.RelationData:
 
         raise NotImplementedError
 
     def _transform(self,
         X: pdreld.RelationData
-        ) -> pdreld.RelationData:
+    ) -> pdreld.RelationData:
 
-        if self.transform is None:
-            return X
-        else:
-            for tf in self.transform:
-                X = tf(X)
-            return X
+        for tf in self.transform:
+            X = tf(X)
+        return X
 
 
 class Precomputed(Relations):

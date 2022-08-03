@@ -10,7 +10,7 @@ from paradime import relationdata as pdreld
 from paradime import utils as pdutils
 from .types import Tensor, Rels
 
-class RelationTransform():
+class RelationTransform(pdutils._ReprMixin):
     """Base class for relation transforms.
     
     Custom transforms should subclass this class.
@@ -34,7 +34,7 @@ class RelationTransform():
         raise NotImplementedError()
 
     def _set_verbosity(self, verbose: bool) -> None:
-        if hasattr(self, verbose):
+        if hasattr(self, 'verbose'):
             self.verbose = verbose
 
 class Identity(RelationTransform):

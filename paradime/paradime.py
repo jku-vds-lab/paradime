@@ -21,7 +21,7 @@ import paradime.utils as pdutils
 import paradime.exceptions as pdexc
 from paradime.types import Tensor, Data
 
-class Dataset(td.Dataset):
+class Dataset(td.Dataset, pdutils._ReprMixin):
     """A dataset for dimensionality reduction.
 
     Constructs a PyTorch :class:torch.utils.data.Dataset from the given data
@@ -200,7 +200,7 @@ def _collate_edge_batch(
     return collated_batch
 
 
-class TrainingPhase():
+class TrainingPhase(pdutils._ReprMixin):
     """A collection of parameter settings for a single phase in the
     training of a :class:`paradime.dr.ParametricDR` instance.
 
@@ -290,7 +290,7 @@ RelOrRelDict = Union[
     dict[str, pdrel.Relations]
 ]
 
-class ParametricDR():
+class ParametricDR(pdutils._ReprMixin):
     """A general parametric dimensionality reduction routine.
 
     Args:

@@ -9,7 +9,7 @@ import warnings
 import paradime.utils as pdutils
 from .types import IndexList, Rels
 
-class RelationData():
+class RelationData(pdutils._ReprMixin):
     """Base class for storing relations between data points."""
 
     def __init__(self):

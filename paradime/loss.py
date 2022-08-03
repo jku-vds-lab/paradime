@@ -1,5 +1,4 @@
 import torch
-import uuid
 import numpy as np
 from typing import Optional, Literal, Union
 
@@ -24,7 +23,7 @@ class Loss(torch.nn.Module):
         super().__init__()
 
         if name is None:
-            self.name = self._prefix + str(uuid.uuid4())
+            self.name = self._prefix + "_" + str(id(self))
         else:
             self.name = name
 
