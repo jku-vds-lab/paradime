@@ -140,7 +140,7 @@ class ParametricTSNE(prdm.ParametricDR):
                 ),
                 batch_size=self.init_batch_size,
                 n_epochs=self.init_epochs,
-                learning_rate=self.init_learning_rate
+                learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
             name="embedding",
@@ -149,7 +149,7 @@ class ParametricTSNE(prdm.ParametricDR):
             ),
             batch_size=self.batch_size,
             n_epochs=self.epochs,
-            learning_rate=self.learning_rate
+            learning_rate=self.learning_rate,
         )
 
 class ParametricUMAP(prdm.ParametricDR):
@@ -260,7 +260,7 @@ class ParametricUMAP(prdm.ParametricDR):
                     min_dist=min_dist,
                     spread=spread,
                     a=a,
-                    b=b
+                    b=b,
                 )
             ]
         )
@@ -296,14 +296,16 @@ class ParametricUMAP(prdm.ParametricDR):
                 ),
                 batch_size=self.init_batch_size,
                 n_epochs=self.init_epochs,
-                learning_rate=self.init_learning_rate
+                learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
             name="embedding",
             loss=pdloss.RelationLoss(
-                loss_function=pdloss.kullback_leibler_div
+                loss_function=pdloss.cross_entropy_loss
             ),
+            sampling='negative_edge',
+            neg_sampling_rate=self.negative_sampling_rate,
             batch_size=self.batch_size,
             n_epochs=self.epochs,
-            learning_rate=self.learning_rate
+            learning_rate=self.learning_rate,
         )

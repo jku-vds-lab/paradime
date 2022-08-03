@@ -777,8 +777,6 @@ class ParametricDR(pdutils._ReprMixin):
             )
 
         for epoch in range(training_phase.n_epochs):
-
-            running_loss = 0.
             
             batch: dict[str, torch.Tensor]
             for batch in dataloader:
@@ -796,13 +794,15 @@ class ParametricDR(pdutils._ReprMixin):
                 loss.backward()
                 optimizer.step()
 
-                running_loss += training_phase.loss._last  # type: ignore
+            training_phase.loss.checkpoint()
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
                 pdutils.report(
-                    f"Loss after epoch {epoch}: {running_loss}"
+                    f"Loss after epoch {epoch}: "
+                    f"{training_phase.loss.history[-1]}"
                 )
+            
 
             self.trained = True
     

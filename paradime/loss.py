@@ -27,21 +27,25 @@ class Loss(torch.nn.Module):
         else:
             self.name = name
 
-        self._last: Optional[float] = None
+        self._accumulated: float = 0.
         self.history: list[float] = []
 
-        self._history_hook = self.register_forward_hook(self._save_last)
+        self._history_hook = self.register_forward_hook(self._add_last)
 
-    def _save_last(self,
+    def __call__(self, *args, **kwargs) -> torch.Tensor:
+        # redefine to call super to improve type hinting
+        return super().__call__(*args, **kwargs)
+
+    def _add_last(self,
         model: torch.nn.Module,
         input: torch.Tensor,
         output: torch.Tensor,
     ) -> None:
-        self._last = float(output.detach().cpu().item())
+        self._accumulated += float(output.detach().cpu().item())
 
     def checkpoint(self) -> None:
-        if self._last is not None:
-            self.history.append(self._last)
+        self.history.append(self._accumulated)
+        self._accumulated = 0.
 
     def forward(self,
         model: pdmod.Model,
@@ -305,16 +309,10 @@ class CompoundLoss(Loss):
         
         self.weights = pdutils._convert_input_to_torch(weights)
 
-        self._last_detailed: Optional[tuple[float, ...]] = None
-        self.detailed_history: list[tuple[float, ...]] = []
-
     def checkpoint(self) -> None:
-        if self._last is not None:
-            self.history.append(self._last)
-            for loss in self.losses:
-                loss.checkpoint()
-        if self._last_detailed is not None:
-            self.detailed_history.append(self._last_detailed)
+        super().checkpoint()
+        for l in self.losses:
+            l.checkpoint()
 
     def _check_sampling_and_relations(
         self,
@@ -337,15 +335,11 @@ class CompoundLoss(Loss):
     ) -> torch.Tensor:
 
         total_loss = torch.tensor(0.).to(device)
-        losses: list[float] = []
 
         for loss, w in zip(self.losses, self.weights.to(device)):
             loss_val = loss(model, global_relations,
                 batch_relations, batch, device)
-            losses.append(loss._last)  # type: ignore
             total_loss += w * loss_val
-
-        self._last_detailed = tuple(losses)
 
         return total_loss
 
