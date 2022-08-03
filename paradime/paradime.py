@@ -811,6 +811,7 @@ class ParametricDR(pdutils._ReprMixin):
         routine.
         """
         self._prepare_training()
-        self._compute_global_relations()
+        if not self._global_relations_computed:
+            self._compute_global_relations()
         for tp in self.training_phases:
             self.run_training_phase(tp)
