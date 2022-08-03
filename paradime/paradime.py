@@ -466,7 +466,7 @@ class ParametricDR(pdutils._ReprMixin):
         else:
             raise pdexc.NotTrainedError(
             "DR instance is not trained yet. Call 'train' with "
-            "appropriate arguments before using encoder."
+            "appropriate arguments before calling the model."
             )
 
     def embed(self,
@@ -494,7 +494,7 @@ class ParametricDR(pdutils._ReprMixin):
         Returns:
             A PyTorch tensor with the predicted class labels for the data.
         """
-        return self._call_model_method_by_name('classify ', X)       
+        return self._call_model_method_by_name('classify', X)       
 
     def set_training_defaults(self,
         training_phase: Optional[TrainingPhase] = None,

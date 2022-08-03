@@ -18,6 +18,7 @@ class ParametricTSNE(prdm.ParametricDR):
     This class provides a high-level interface for a
     :class:`paradime.paradime.ParametricDR` routine with the following
     specifications:
+
     - The global relations are :class:`paradime.relations.NeighborBasedPDist`,
       transformed with a :class:`paradime.transforms.PerplexityBasedRescale`
       followed by :class:`paradime.tranforms.Symmetrize`.
@@ -158,6 +159,7 @@ class ParametricUMAP(prdm.ParametricDR):
     This class provides a high-level interface for a
     :class:`paradime.paradime.ParametricDR` routine with the following
     specifications:
+    
     - The global relations are :class:`paradime.relations.NeighborBasedPDist`,
       transformed with a :class:`paradime.transforms.ConnectivityBasedRescale`
       followed by :class:`paradime.tranforms.Symmetrize` with product
