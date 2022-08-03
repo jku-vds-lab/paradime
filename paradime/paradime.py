@@ -387,7 +387,6 @@ class ParametricDR():
         else:
             self.model = model
 
-        # TODO: check relation input for validity
         if isinstance(global_relations, pdrel.Relations):
             self.global_relations = {
                 'rel': global_relations
@@ -396,6 +395,8 @@ class ParametricDR():
             self.global_relations = global_relations
         else:
             self.global_relations = {}
+        for k in self.global_relations:
+            self.global_relations[k]._set_verbosity(self.verbose)
         
         self.global_relation_data: dict[str, pdreldata.RelationData] = {}
         self._global_relations_computed = False
@@ -408,6 +409,8 @@ class ParametricDR():
             self.batch_relations = batch_relations
         else:
             self.batch_relations = {}
+        for k in self.batch_relations:
+            self.batch_relations[k]._set_verbosity(self.verbose)
 
         self.training_defaults = training_defaults
 

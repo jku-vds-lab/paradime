@@ -50,6 +50,12 @@ class Relations():
     def relations(self, reldata: pdreld.RelationData) -> None:
         self._relations = reldata
 
+    def _set_verbosity(self, verbose: bool) -> None:
+        if hasattr(self, 'verbose'):
+            self.verbose = verbose
+            for tf in self.transform:
+                tf._set_verbosity(verbose)
+
     def compute_relations(self,
         X: Optional[Tensor] = None,
         **kwargs) -> pdreld.RelationData:

@@ -33,6 +33,10 @@ class RelationTransform():
 
         raise NotImplementedError()
 
+    def _set_verbosity(self, verbose: bool) -> None:
+        if hasattr(self, verbose):
+            self.verbose = verbose
+
 class Identity(RelationTransform):
     """A placeholder identity transform."""
 
