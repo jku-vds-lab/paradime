@@ -1,25 +1,36 @@
+"""Relation tranforms for paraDime.
+
+The :mod:`paradime.tranforms` module defines various classes used to transform
+relations between data points.
+"""
+
+import functools
+from typing import Callable, Union, Optional, Any
+
+import numba
 import numpy as np
 import torch
 import scipy.optimize
 import scipy.sparse
-from numba import jit
-import functools
-from typing import Callable, Union, Optional, Any
 
-from paradime import relationdata as pdreld
-from paradime import utils as pdutils
-from .types import Tensor, Rels
+from paradime import relationdata
+from paradime import utils
+from paradime.types import Tensor, Rels
 
-class RelationTransform(pdutils._ReprMixin):
+class RelationTransform(utils._ReprMixin):
     """Base class for relation transforms.
     
     Custom transforms should subclass this class.
     """
-    def __call__(self,reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def __call__(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         return self.transform(reldata)
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         """Applies the transform to input data.
         
         Args:
@@ -40,63 +51,81 @@ class RelationTransform(pdutils._ReprMixin):
 class Identity(RelationTransform):
     """A placeholder identity transform."""
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata
 
 class ToFlatArray(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.FlatRelationArray`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_flat_array()
 
 class ToFlatTensor(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.FlatRelationTensor`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_flat_tensor()
 
 class ToSquareArray(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.SquareRelationArray`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_square_array()
 
 class ToSquareTensor(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.SquareRelationTensor`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_square_tensor()
 
 class ToTriangularArray(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.TriangularRelationArray`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_triangular_array()
 
 class ToTriangularTensor(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.TriangularRelationTensor`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_triangular_tensor()
 
 class ToNeighborTuple(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.NeighborRelationTuple`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_neighbor_tuple()
 
 class ToSparseArray(RelationTransform):
     """Converts the relations to a
     :class:`paradime.relationdata.SparseRelationArray`.
     """
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         return reldata.to_sparse_array()
 
 class AdaptiveNeighborhoodRescale(RelationTransform):
@@ -150,7 +179,9 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
     def _get_comparison_constant(self) -> float:
         raise NotImplementedError()
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         reldata = reldata.to_neighbor_tuple()
         reldata._remove_self_relations()
@@ -162,7 +193,7 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         self._param_values = np.empty(num_pts, dtype=float)
 
         if self.verbose:
-            pdutils.report("Calculating probabilities.")
+            utils.report("Calculating probabilities.")
 
         for i, rels in enumerate(relations):
             beta = self.find_param(
@@ -219,7 +250,7 @@ class PerplexityBasedRescale(AdaptiveNeighborhoodRescale):
         if not self.kwargs: # check if emtpy
             self.kwargs['bracket'] = [0.01, 1.]
 
-@jit
+@numba.jit
 def _entropy(dists: np.ndarray, beta: float) -> float:
     x = - dists**2 * beta
     y = np.exp(x)
@@ -289,7 +320,9 @@ class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
         if not self.kwargs: # check if emtpy
             self.kwargs['bracket'] = [1.e-6, 1.e6]
 
-    # def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    # def transform(self,
+    #   reldata: relationdata.RelationData
+    # ) -> relationdata.RelationData:
 
     #     reldata = reldata.to_array_tuple()
     #     reldata._remove_self_relations()
@@ -299,7 +332,7 @@ class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
     #     self.sigmas = np.empty(num_pts, dtype=float)
 
     #     if self.verbose:
-    #         pdutils.report('Calculating probabilities.')
+    #         utils.report('Calculating probabilities.')
 
     #     for i, rels in enumerate(relations):
     #         sigma = _find_sigma(
@@ -339,11 +372,13 @@ class Symmetrize(RelationTransform):
         super().__init__()
         self.subtract_product = subtract_product
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         if isinstance(reldata, (
-            pdreld.TriangularRelationArray,
-            pdreld.TriangularRelationTensor
+            relationdata.TriangularRelationArray,
+            relationdata.TriangularRelationTensor
         )):
             return reldata
         else:
@@ -352,17 +387,19 @@ class Symmetrize(RelationTransform):
             else:
                 symmetrizer = _sym_plus_only 
 
-            if isinstance(reldata, pdreld.NeighborRelationTuple):
+            if isinstance(reldata, relationdata.NeighborRelationTuple):
                 return symmetrizer(reldata.to_sparse_array())
             else:
                 return symmetrizer(reldata)
 
-def _sym_plus_only(reldata: pdreld.RelationData) -> pdreld.RelationData:
-    if isinstance(reldata, pdreld.SquareRelationArray):
+def _sym_plus_only(
+    reldata: relationdata.RelationData,
+) -> relationdata.RelationData:
+    if isinstance(reldata, relationdata.SquareRelationArray):
         reldata.data = (0.5 * (reldata.data + reldata.data.T))
-    elif isinstance(reldata, pdreld.SparseRelationArray):
+    elif isinstance(reldata, relationdata.SparseRelationArray):
         reldata.data = 0.5 * (reldata.data + reldata.data.transpose())
-    elif isinstance(reldata, pdreld.SquareRelationTensor):
+    elif isinstance(reldata, relationdata.SquareRelationTensor):
         reldata.data = 0.5 * (reldata.data + torch.t(reldata.data))
     else:
         raise TypeError(
@@ -370,14 +407,16 @@ def _sym_plus_only(reldata: pdreld.RelationData) -> pdreld.RelationData:
         )
     return reldata
 
-def _sym_subtract_product(reldata: pdreld.RelationData) -> pdreld.RelationData:
-    if isinstance(reldata, pdreld.SquareRelationArray):
+def _sym_subtract_product(
+    reldata: relationdata.RelationData,
+) -> relationdata.RelationData:
+    if isinstance(reldata, relationdata.SquareRelationArray):
         reldata.data = (reldata.data + reldata.data.T
             - reldata.data * reldata.data.T)
-    elif isinstance(reldata, pdreld.SparseRelationArray):
+    elif isinstance(reldata, relationdata.SparseRelationArray):
         reldata.data = (reldata.data + reldata.data.transpose()
             - reldata.data.multiply(reldata.data.transpose()))
-    elif isinstance(reldata, pdreld.SquareRelationTensor):
+    elif isinstance(reldata, relationdata.SquareRelationTensor):
         reldata.data = (reldata.data + torch.t(reldata.data)
             - reldata.data * torch.t(reldata.data))
     else:
@@ -389,19 +428,21 @@ def _sym_subtract_product(reldata: pdreld.RelationData) -> pdreld.RelationData:
 class NormalizeRows(RelationTransform):
     """Normalizes the relation values for each data point separately."""
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
-        if isinstance(reldata, pdreld.TriangularRelationArray):
+        if isinstance(reldata, relationdata.TriangularRelationArray):
             reldata = reldata.to_square_array()
             reldata.data /= reldata.data.sum(axis=1, keepdims=True)
-        elif isinstance(reldata, pdreld.TriangularRelationTensor):
+        elif isinstance(reldata, relationdata.TriangularRelationTensor):
             reldata = reldata.to_square_tensor()
             reldata.data /= reldata.data.sum(dim=1, keepdim=True)
-        elif isinstance(reldata, pdreld.SquareRelationArray):
+        elif isinstance(reldata, relationdata.SquareRelationArray):
             reldata.data /= reldata.data.sum(axis=1, keepdims=True)
-        elif isinstance(reldata, pdreld.SquareRelationTensor):
+        elif isinstance(reldata, relationdata.SquareRelationTensor):
             reldata.data /= reldata.data.sum(dim=1, keepdim=True)
-        elif isinstance(reldata, pdreld.SparseRelationArray):
+        elif isinstance(reldata, relationdata.SparseRelationArray):
             norm_factors = 1 / np.repeat(
                 np.array(reldata.data.sum(axis=1)),
                 reldata.data.getnnz(axis=1)
@@ -410,7 +451,7 @@ class NormalizeRows(RelationTransform):
                 norm_factors,
                 reldata.data.nonzero()
             )).multiply(reldata.data)
-        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+        elif isinstance(reldata, relationdata.NeighborRelationTuple):
             neighbors, relations = reldata.data
             reldata.data = (neighbors,
                 relations / relations.sum(axis=1, keepdims=True))
@@ -423,22 +464,24 @@ class NormalizeRows(RelationTransform):
 class Normalize(RelationTransform):
     """Normalizes the relation values for each data point separately."""
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         if isinstance(reldata, (
-            pdreld.TriangularRelationArray,
-            pdreld.TriangularRelationTensor
+            relationdata.TriangularRelationArray,
+            relationdata.TriangularRelationTensor,
         )):
             reldata.data /= 2 * reldata.data.sum()
         elif isinstance(reldata, (
-            pdreld.SquareRelationArray,
-            pdreld.SquareRelationTensor,
-            pdreld.SparseRelationArray,
-            pdreld.FlatRelationTensor,
-            pdreld.FlatRelationArray,
+            relationdata.SquareRelationArray,
+            relationdata.SquareRelationTensor,
+            relationdata.SparseRelationArray,
+            relationdata.FlatRelationTensor,
+            relationdata.FlatRelationArray,
         )):
             reldata.data /= reldata.data.sum()
-        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+        elif isinstance(reldata, relationdata.NeighborRelationTuple):
             neighbors, relations = reldata.data
             reldata.data = (neighbors, relations / relations.sum())
         else:
@@ -450,20 +493,22 @@ class Normalize(RelationTransform):
 class ZeroDiagonal(RelationTransform):
     """Sets all self-relations to zero."""
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         if isinstance(reldata, (
-            pdreld.TriangularRelationArray,
-            pdreld.TriangularRelationTensor,
+            relationdata.TriangularRelationArray,
+            relationdata.TriangularRelationTensor,
         )):
             return reldata
-        elif isinstance(reldata, pdreld.SquareRelationArray):
+        elif isinstance(reldata, relationdata.SquareRelationArray):
             np.fill_diagonal(reldata.data, 0.)
-        elif isinstance(reldata, pdreld.SquareRelationTensor):
+        elif isinstance(reldata, relationdata.SquareRelationTensor):
             reldata.data.fill_diagonal_(0.)
-        elif isinstance(reldata, pdreld.SparseRelationArray):
+        elif isinstance(reldata, relationdata.SparseRelationArray):
             reldata.data.setdiag(0.)
-        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+        elif isinstance(reldata, relationdata.NeighborRelationTuple):
             reldata._remove_self_relations()
         else:
             raise TypeError(
@@ -484,12 +529,14 @@ class StudentTTransform(RelationTransform):
     def __init__(self, alpha: Union[float, torch.Tensor]):
         self.alpha = alpha
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         
         if isinstance(reldata, (
-            pdreld.SquareRelationTensor,
-            pdreld.TriangularRelationTensor,
-            pdreld.FlatRelationTensor,
+            relationdata.SquareRelationTensor,
+            relationdata.TriangularRelationTensor,
+            relationdata.FlatRelationTensor,
         )):
             reldata.data = reldata.data.pow(2.)
             reldata.data += 1.
@@ -497,17 +544,17 @@ class StudentTTransform(RelationTransform):
             #TODO: fix RuntimeError due to in-place operation below
             reldata.data = torch.pow(torch.clone(reldata.data), - (self.alpha + 1.) / 2)
         elif isinstance(reldata, (
-            pdreld.SquareRelationArray,
-            pdreld.TriangularRelationArray,
-            pdreld.FlatRelationArray,
+            relationdata.SquareRelationArray,
+            relationdata.TriangularRelationArray,
+            relationdata.FlatRelationArray,
         )):
             reldata.data = np.power(
                 1. + reldata.data**2. / self.alpha,
                 - (self.alpha + 1.) / 2.
             )
-        elif isinstance(reldata, pdreld.SparseRelationArray):
+        elif isinstance(reldata, relationdata.SparseRelationArray):
             return self.transform(reldata.to_square_array())
-        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+        elif isinstance(reldata, relationdata.NeighborRelationTuple):
             neighbors, rels = reldata.data
             rels = np.power(
                 1. + rels**2. / self.alpha,
@@ -561,24 +608,26 @@ class ModifiedCauchyTransform(RelationTransform):
         if b is not None:
             self.b = b
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
         
         if isinstance(reldata, (
-            pdreld.SquareRelationTensor,
-            pdreld.TriangularRelationTensor,
-            pdreld.FlatRelationTensor,
+            relationdata.SquareRelationTensor,
+            relationdata.TriangularRelationTensor,
+            relationdata.FlatRelationTensor,
         )):
             reldata.data = reldata.data.pow(2. * self.b)
             reldata.data = torch.pow(1. + self.a * reldata.data, -1.)
         elif isinstance(reldata, (
-            pdreld.SquareRelationArray,
-            pdreld.TriangularRelationArray,
-            pdreld.FlatRelationArray,
+            relationdata.SquareRelationArray,
+            relationdata.TriangularRelationArray,
+            relationdata.FlatRelationArray,
         )):
             reldata.data = np.power(1. + reldata.data**(2. * self.b), -1.)
-        elif isinstance(reldata, pdreld.SparseRelationArray):
+        elif isinstance(reldata, relationdata.SparseRelationArray):
             return self.transform(reldata.to_square_array())
-        elif isinstance(reldata, pdreld.NeighborRelationTuple):
+        elif isinstance(reldata, relationdata.NeighborRelationTuple):
             neighbors, rels = reldata.data
             rels = np.power(1. + rels**(2. * self.b), -1.)
             reldata.data = (neighbors, rels)
@@ -634,7 +683,9 @@ class Functional(RelationTransform):
         self.in_place = in_place
         self.check_valid = check_valid
 
-    def transform(self, reldata: pdreld.RelationData) -> pdreld.RelationData:
+    def transform(self,
+        reldata: relationdata.RelationData,
+    ) -> relationdata.RelationData:
 
         if self.in_place:
             reldata.data = self.f(reldata.data)

@@ -1,13 +1,25 @@
-import torch
-import numpy as np
+"""Losses for paraDime routines.
+
+The :mod:`paradime.loss` module implements the specification of losses for
+paraDime routines. The supported losses are
+:class:`paradime.loss.RelationLoss`,
+:class:`paradime.loss.ClassificationLoss`,
+:class:`paradime.loss.ReconstructionLoss`, and
+:class:`paradime.loss.CompoundLoss`.
+"""
+
 from typing import Optional, Literal, Union
 
-import paradime.relations as pdrel
-import paradime.relationdata as pdreldata
-import paradime.models as pdmod
-import paradime.utils as pdutils
-from paradime.types import LossFun
-from paradime.exceptions import UnsupportedConfigurationError
+import numpy as np
+import torch
+
+from paradime import exceptions
+from paradime import models
+from paradime import relationdata
+from paradime import relations
+from paradime.types import BinaryTensorFun
+from paradime import utils
+
 
 class Loss(torch.nn.Module):
     """Base class for losses.
@@ -48,9 +60,9 @@ class Loss(torch.nn.Module):
         self._accumulated = 0.
 
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
     ) -> torch.Tensor:
@@ -93,7 +105,7 @@ class RelationLoss(Loss):
     _prefix = 'rel_loss'
 
     def __init__(self,
-        loss_function: LossFun,
+        loss_function: BinaryTensorFun,
         data_key: str = 'data',
         global_relation_key: str = 'rel',
         batch_relation_key: str = 'rel',
@@ -111,27 +123,27 @@ class RelationLoss(Loss):
     def _check_sampling_and_relations(
         self,
         sampling: Literal['standard', 'negative_edge'],
-        batch_relations: dict[str, pdrel.Relations],
+        batch_relations: dict[str, relations.Relations],
     ) -> None:
         if isinstance(
             batch_relations[self.batch_relation_key],
-            pdrel.DistsFromTo
+            relations.DistsFromTo
         ):
             if sampling == 'negative_edge':
                 self._use_from_to = True
                 self.data_key = 'from_to_data'
                 self.global_relation_key = 'rel'
             else:
-                raise UnsupportedConfigurationError(
+                raise exceptions.UnsupportedConfigurationError(
                     "RelationLoss does not support DistsFromTo with "
                     "'standard' sampling. Consider using 'negative_edge' "
                     "sampling instead."
                 )
 
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
     ) -> torch.Tensor:
@@ -174,7 +186,7 @@ class ClassificationLoss(Loss):
     _prefix = 'class_loss'
 
     def __init__(self,
-        loss_function: LossFun = torch.nn.CrossEntropyLoss(),
+        loss_function: BinaryTensorFun = torch.nn.CrossEntropyLoss(),
         data_key: str = 'data',
         label_key: str = 'labels',
         name: Optional[str] = None,
@@ -186,9 +198,9 @@ class ClassificationLoss(Loss):
         self.label_key = label_key
     
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
         ) -> torch.Tensor:
@@ -219,7 +231,7 @@ class PositionLoss(Loss):
     _prefix = 'pos_loss'
 
     def __init__(self,
-        loss_function: LossFun = torch.nn.MSELoss(),
+        loss_function: BinaryTensorFun = torch.nn.MSELoss(),
         data_key: str = 'data',
         position_key: str = 'pos',
         name: Optional[str] = None,
@@ -231,9 +243,9 @@ class PositionLoss(Loss):
         self.position_key = position_key
     
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
         ) -> torch.Tensor:
@@ -259,7 +271,7 @@ class ReconstructionLoss(Loss):
     _prefix = 'recon_loss'
 
     def __init__(self,
-        loss_function: LossFun = torch.nn.MSELoss(),
+        loss_function: BinaryTensorFun = torch.nn.MSELoss(),
         data_key: str = 'data',
         name: Optional[str] = None,
         ):
@@ -269,9 +281,9 @@ class ReconstructionLoss(Loss):
         self.data_key = data_key
 
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
         ) -> torch.Tensor:
@@ -307,7 +319,7 @@ class CompoundLoss(Loss):
         elif len(weights) != len(self.losses):
             raise ValueError("Size mismatch between losses and weights.")
         
-        self.weights = pdutils._convert_input_to_torch(weights)
+        self.weights = utils._convert_input_to_torch(weights)
 
     def checkpoint(self) -> None:
         super().checkpoint()
@@ -317,7 +329,7 @@ class CompoundLoss(Loss):
     def _check_sampling_and_relations(
         self,
         sampling: Literal['standard', 'negative_edge'],
-        batch_relations: dict[str, pdrel.Relations],
+        batch_relations: dict[str, relations.Relations],
     ) -> None:
         for loss in self.losses:
             if isinstance(loss, RelationLoss):
@@ -327,9 +339,9 @@ class CompoundLoss(Loss):
                 )
         
     def forward(self,
-        model: pdmod.Model,
-        global_relations: dict[str, pdreldata.RelationData],
-        batch_relations: dict[str, pdrel.Relations],
+        model: models.Model,
+        global_relations: dict[str, relationdata.RelationData],
+        batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
     ) -> torch.Tensor:

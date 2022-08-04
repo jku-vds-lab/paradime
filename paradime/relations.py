@@ -1,26 +1,28 @@
-from datetime import datetime
-from multiprocessing.sharedctypes import Value
-import warnings
+"""Relation computation for paraDime.
+
+The :mod:`paradime.relations` module defines various classes used to compute
+relations between data points.
+"""
+
 from typing import Union, Callable, Optional
+import warnings
+
 import torch
 import torch.nn.functional as F
-import numpy as np
-from pynndescent import NNDescent
-import scipy.sparse
-from scipy.spatial.distance import pdist, squareform
+import pynndescent
+from scipy.spatial import distance
 
-import paradime.relationdata as pdreld
-import paradime.transforms as pdtf
-import paradime.utils as pdutils
-
-from .types import Metric, Tensor, Rels
+from paradime import relationdata
+from paradime import transforms
+from paradime import utils
+from paradime.types import BinaryTensorFun, TensorLike
 
 Transform = Union[    
-    pdtf.RelationTransform,
-    list[pdtf.RelationTransform]
+    transforms.RelationTransform,
+    list[transforms.RelationTransform]
 ]
 
-class Relations(pdutils._ReprMixin):
+class Relations(utils._ReprMixin):
     """Base class for calculating relations between data points.
     
     Custom relations should subclass this class.
@@ -28,7 +30,7 @@ class Relations(pdutils._ReprMixin):
     
     def __init__(self, transform: Optional[Transform] = None):
         
-        self.transform: list[pdtf.RelationTransform]
+        self.transform: list[transforms.RelationTransform]
         if transform is None:
             self.transform = []
         elif not isinstance(transform, list):
@@ -36,10 +38,10 @@ class Relations(pdutils._ReprMixin):
         else:
             self.transform = transform
 
-        self._relations: Optional[pdreld.RelationData] = None
+        self._relations: Optional[relationdata.RelationData] = None
 
     @property
-    def relations(self) -> pdreld.RelationData:
+    def relations(self) -> relationdata.RelationData:
         if self._relations is None:
             raise AttributeError(
                 "Relations only available after calling 'compute_relations'."
@@ -48,7 +50,7 @@ class Relations(pdutils._ReprMixin):
             return self._relations
     
     @relations.setter
-    def relations(self, reldata: pdreld.RelationData) -> None:
+    def relations(self, reldata: relationdata.RelationData) -> None:
         self._relations = reldata
 
     def _set_verbosity(self, verbose: bool) -> None:
@@ -58,15 +60,15 @@ class Relations(pdutils._ReprMixin):
                 tf._set_verbosity(verbose)
 
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
 
         raise NotImplementedError
 
     def _transform(self,
-        X: pdreld.RelationData
-    ) -> pdreld.RelationData:
+        X: relationdata.RelationData
+    ) -> relationdata.RelationData:
 
         for tf in self.transform:
             X = tf(X)
@@ -89,7 +91,7 @@ class Precomputed(Relations):
     """
 
     def __init__(self,
-        X: Tensor,
+        X: TensorLike,
         transform: Optional[Transform] = None,
     ):
 
@@ -98,12 +100,12 @@ class Precomputed(Relations):
         )
 
         self.relations = self._transform(
-            pdreld.relation_factory(X))
+            relationdata.relation_factory(X))
 
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
         """Obtain the precomputed relations.
 
         Args:
@@ -139,7 +141,7 @@ class PDist(Relations):
     """
  
     def __init__(self,
-        metric: Optional[Metric] = None,
+        metric: Optional[Union[Callable, str]] = None,
         transform: Optional[Transform] = None,
         keep_result = True,
         verbose: bool = False,
@@ -157,9 +159,9 @@ class PDist(Relations):
         self.verbose = verbose
 
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
 
         Args:
@@ -175,16 +177,18 @@ class PDist(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = pdutils._convert_input_to_numpy(X)
+        X = utils._convert_input_to_numpy(X)
 
         if self._relations is None or not self.keep_result:
             if self.verbose:
-                pdutils.report("Calculating pairwise distances.")
+                utils.report("Calculating pairwise distances.")
             self.relations = self._transform(
-                pdreld.relation_factory(pdist(X, metric=self.metric))
+                relationdata.relation_factory(
+                    distance.pdist(X, metric=self.metric)
+                )
             )
         elif self.verbose:
-            pdutils.report("Using previously calculated distances.")
+            utils.report("Using previously calculated distances.")
 
         return self.relations
 
@@ -213,7 +217,7 @@ class NeighborBasedPDist(Relations):
 
     def __init__(self,
         n_neighbors: Optional[int] = None,
-        metric: Optional[Metric] = None,
+        metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
         verbose: bool = False,
     ):
@@ -233,9 +237,9 @@ class NeighborBasedPDist(Relations):
         n_nb = 0.
         if self.transform is not None:
             for tf in self.transform:
-                if isinstance(tf, pdtf.PerplexityBasedRescale):
+                if isinstance(tf, transforms.PerplexityBasedRescale):
                     perp = max(perp, tf.perplexity)
-                elif isinstance(tf, pdtf.ConnectivityBasedRescale):
+                elif isinstance(tf, transforms.ConnectivityBasedRescale):
                     n_nb = max(n_nb, tf.n_neighbors)
 
         # set number of neighbors according to highest
@@ -266,9 +270,9 @@ class NeighborBasedPDist(Relations):
                 self.n_neighbors = int(min(num_pts - 1, n_nb))
     
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
 
         Args:
@@ -284,25 +288,25 @@ class NeighborBasedPDist(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = pdutils._convert_input_to_numpy(X)
+        X = utils._convert_input_to_numpy(X)
 
         self._set_n_neighbors(X.shape[0])
         assert self.n_neighbors is not None
         
         if self.verbose:
-            pdutils.report("Indexing nearest neighbors.")
+            utils.report("Indexing nearest neighbors.")
 
         if self.metric is None:
             self.metric = 'euclidean'
         
-        index = NNDescent(X,
+        index = pynndescent.NNDescent(X,
             n_neighbors=self.n_neighbors + 1,
             metric=self.metric
         )
         neighbors, distances = index.neighbor_graph
 
         self.relations = self._transform(
-            pdreld.NeighborRelationTuple(
+            relationdata.NeighborRelationTuple(
                 (neighbors, distances)
             )
         )
@@ -330,9 +334,7 @@ class DifferentiablePDist(Relations):
 
     def __init__(self,
         p: float = 2,
-        metric: Optional[Callable[
-            [torch.Tensor, torch.Tensor],
-            torch.Tensor]] = None,
+        metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
     ):
 
@@ -344,9 +346,9 @@ class DifferentiablePDist(Relations):
         self.metric_p = p
 
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
         
         If `metric` is not None, a flexible but memory-inefficient
@@ -372,7 +374,7 @@ class DifferentiablePDist(Relations):
                 "for which no gradients are computed."
             )
 
-        X = pdutils._convert_input_to_torch(X)
+        X = utils._convert_input_to_torch(X)
 
         # use memory-inefficient pdist to allow for arbitrary metrics
         # will break for large batches
@@ -384,7 +386,7 @@ class DifferentiablePDist(Relations):
             # apply metric to pairs of items
             diss = self.metric(tiled, tiled.transpose(0, 1))
             self.relations = self._transform(
-                pdreld.SquareRelationTensor(diss)
+                relationdata.SquareRelationTensor(diss)
             )
         # otherwise use built-in torch method
         else:
@@ -394,7 +396,7 @@ class DifferentiablePDist(Relations):
             # i, j = torch.triu_indices(n, n, offset=1)
             # diss[[i, j]] = diss_cond
             self.relations = self._transform(
-                pdreld.TriangularRelationTensor(
+                relationdata.TriangularRelationTensor(
                     diss_cond
                     # diss + diss.T
                 )
@@ -418,9 +420,7 @@ class DistsFromTo(Relations):
     """
  
     def __init__(self,
-        metric: Optional[Callable[
-            [torch.Tensor, torch.Tensor],
-            torch.Tensor]] = None,
+        metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
     ):
 
@@ -434,9 +434,9 @@ class DistsFromTo(Relations):
         self.metric = metric
 
     def compute_relations(self,
-        X: Optional[Tensor] = None,
+        X: Optional[TensorLike] = None,
         **kwargs
-    ) -> pdreld.RelationData:
+    ) -> relationdata.RelationData:
         """Calculates the distances.
 
         Args:
@@ -453,7 +453,7 @@ class DistsFromTo(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = pdutils._convert_input_to_torch(X)
+        X = utils._convert_input_to_torch(X)
 
         if len(X) != 2 or X[0].shape != X[1].shape:
             raise ValueError(
@@ -462,7 +462,7 @@ class DistsFromTo(Relations):
             )
 
         self.relations = self._transform(
-            pdreld.FlatRelationTensor(self.metric(X[0], X[1]))
+            relationdata.FlatRelationTensor(self.metric(X[0], X[1]))
         )
 
         return self.relations

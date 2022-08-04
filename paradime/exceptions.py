@@ -1,3 +1,6 @@
+"""Custom exceptions for paraDime.
+"""
+
 class NotTrainedError(Exception):
     """Method of DR instance called before training."""
 

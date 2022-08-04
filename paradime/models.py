@@ -1,3 +1,10 @@
+"""Default models for paraDime.
+
+The :mod:`paradime.models` module implements default models for several
+applications, such as a simple
+:class:`paradime.models.FullyConnectedEmbeddingModel`.
+"""
+
 import torch
 
 class Model(torch.nn.Module):

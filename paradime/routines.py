@@ -1,18 +1,24 @@
+"""Predefined paraDime routines for existing DR techniques.
+
+The :mod:`paradime.routines` module implements parametric versions of existing
+dimensionality reduction techniques using the :class:`paradime.dr.ParametricDR`
+interface.
+"""
+
 from typing import Optional, Union
+
 import torch
-import numpy as np
 import sklearn.decomposition
 import sklearn.manifold
 
-import paradime as prdm
+from paradime import dr
 from paradime import loss as pdloss
-from paradime import relations as pdrel
-from paradime import transforms as pdtf
-from paradime import models as pdmod
-from paradime.exceptions import NoDatasetRegisteredError
+from paradime import models
+from paradime import relations
+from paradime import transforms
 from paradime.types import Data
 
-class ParametricTSNE(prdm.ParametricDR):
+class ParametricTSNE(dr.ParametricDR):
     """A parametric version of t-SNE.
 
     This class provides a high-level interface for a
@@ -70,7 +76,7 @@ class ParametricTSNE(prdm.ParametricDR):
     def __init__(self,
         perplexity: float = 30.,
         alpha: float = 1.,
-        model: Optional[pdmod.Model] = None,
+        model: Optional[models.Model] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
         hidden_dims: list[int] = [100, 50],        
@@ -82,7 +88,7 @@ class ParametricTSNE(prdm.ParametricDR):
         learning_rate: float = 0.01,
         init_learning_rate: float = 0.05,
         data_key: str ='data',
-        dataset: Optional[Union[Data, prdm.Dataset]] = None,
+        dataset: Optional[Union[Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
     ):
@@ -96,19 +102,19 @@ class ParametricTSNE(prdm.ParametricDR):
         self.init_learning_rate = init_learning_rate
         self.data_key = data_key
 
-        global_rel = pdrel.NeighborBasedPDist(
+        global_rel = relations.NeighborBasedPDist(
             transform=[
-                pdtf.PerplexityBasedRescale(
+                transforms.PerplexityBasedRescale(
                     perplexity=perplexity
                 ),
-                pdtf.Symmetrize(),
+                transforms.Symmetrize(),
             ]
         )
-        batch_rel = pdrel.DifferentiablePDist(
+        batch_rel = relations.DifferentiablePDist(
             transform=[
-                pdtf.StudentTTransform(alpha=alpha),
-                pdtf.Normalize(),
-                pdtf.ToSquareTensor(),
+                transforms.StudentTTransform(alpha=alpha),
+                transforms.Normalize(),
+                transforms.ToSquareTensor(),
             ]
         )
         super().__init__(
@@ -153,7 +159,7 @@ class ParametricTSNE(prdm.ParametricDR):
             learning_rate=self.learning_rate,
         )
 
-class ParametricUMAP(prdm.ParametricDR):
+class ParametricUMAP(dr.ParametricDR):
     """A parametric version of UMAP.
 
     This class provides a high-level interface for a
@@ -220,7 +226,7 @@ class ParametricUMAP(prdm.ParametricDR):
         spread: float = 1.0,
         a: Optional[float] = None,
         b: Optional[float] = None,
-        model: Optional[pdmod.Model] = None,
+        model: Optional[models.Model] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
         hidden_dims: list[int] = [100, 50],        
@@ -233,7 +239,7 @@ class ParametricUMAP(prdm.ParametricDR):
         learning_rate: float = 0.005,
         init_learning_rate: float = 0.05,
         data_key: str ='data',
-        dataset: Optional[Union[Data, prdm.Dataset]] = None,
+        dataset: Optional[Union[Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
     ):
@@ -248,17 +254,17 @@ class ParametricUMAP(prdm.ParametricDR):
         self.init_learning_rate = init_learning_rate
         self.data_key = data_key
 
-        global_rel = pdrel.NeighborBasedPDist(
+        global_rel = relations.NeighborBasedPDist(
             transform=[
-                pdtf.ConnectivityBasedRescale(
+                transforms.ConnectivityBasedRescale(
                     n_neighbors=n_neighbors
                 ),
-                pdtf.Symmetrize(subtract_product=True),
+                transforms.Symmetrize(subtract_product=True),
             ]
         )
-        batch_rel = pdrel.DistsFromTo(
+        batch_rel = relations.DistsFromTo(
             transform=[
-                pdtf.ModifiedCauchyTransform(
+                transforms.ModifiedCauchyTransform(
                     min_dist=min_dist,
                     spread=spread,
                     a=a,

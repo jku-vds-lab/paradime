@@ -1,27 +1,25 @@
-from datetime import datetime
-import warnings
-from typing import Iterable, Union, Callable, Literal, Optional
-from attr import has
-# from grpc import Call
-from numba.core.types.scalars import Boolean
+"""Main module of paraDime.
+
+The :mod:`paradime.dr` module implements the main functionality of paraDime.
+This includes the :class:`paradime.dr.ParametricDR` class, as well as
+:class:`paradime.dr.Dataset` and :class:`paradime.dr.TrainingPhase`.
+"""
+
 import copy
-import torch
-import torch.utils.data as td
-import torch.nn as nn
-import torch.nn.functional as F
+from typing import Union, Literal, Optional
+
 import numpy as np
-from numba import jit
-from sklearn.decomposition import PCA
+import torch
 
-import paradime.relationdata as pdreldata
-import paradime.relations as pdrel
-import paradime.models as pdmod
-import paradime.loss as pdloss
-import paradime.utils as pdutils
-import paradime.exceptions as pdexc
-from paradime.types import Tensor, Data
+from paradime import exceptions
+from paradime import models
+from paradime import relationdata
+from paradime import relations
+from paradime import loss as pdloss
+from paradime.types import Data, TensorLike
+from paradime import utils 
 
-class Dataset(td.Dataset, pdutils._ReprMixin):
+class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
     """A dataset for dimensionality reduction.
 
     Constructs a PyTorch :class:torch.utils.data.Dataset from the given data
@@ -86,7 +84,7 @@ class Dataset(td.Dataset, pdutils._ReprMixin):
         return out
 
 
-class NegSampledEdgeDataset(td.Dataset):
+class NegSampledEdgeDataset(torch.utils.data.Dataset):
     """A dataset that supports negative edge sampling.
 
     Constructs a PyTorch :class:`torch.utils.data.Dataset` suitable for
@@ -108,7 +106,7 @@ class NegSampledEdgeDataset(td.Dataset):
 
     def __init__(self,
         dataset: Dataset,
-        relations: pdreldata.RelationData,
+        relations: relationdata.RelationData,
         neg_sampling_rate: int = 5,
     ):
 
@@ -164,7 +162,7 @@ class NegSampledEdgeDataset(td.Dataset):
             self.dataset.data['data'][cols]
         ))
 
-        remaining_data = td.default_collate(
+        remaining_data = torch.utils.data.default_collate(
             [ self.dataset[i] for i in indices ]
         )
 
@@ -199,8 +197,7 @@ def _collate_edge_batch(
     
     return collated_batch
 
-
-class TrainingPhase(pdutils._ReprMixin):
+class TrainingPhase(utils._ReprMixin):
     """A collection of parameter settings for a single phase in the
     training of a :class:`paradime.dr.ParametricDR` instance.
 
@@ -286,11 +283,11 @@ class TrainingPhase(pdutils._ReprMixin):
 
 
 RelOrRelDict = Union[
-    pdrel.Relations,
-    dict[str, pdrel.Relations]
+    relations.Relations,
+    dict[str, relations.Relations]
 ]
 
-class ParametricDR(pdutils._ReprMixin):
+class ParametricDR(utils._ReprMixin):
     """A general parametric dimensionality reduction routine.
 
     Args:
@@ -375,7 +372,7 @@ class ParametricDR(pdutils._ReprMixin):
                 except KeyError:
                     pass
             if isinstance(in_dim, int):
-                self.model = pdmod.FullyConnectedEmbeddingModel(
+                self.model = models.FullyConnectedEmbeddingModel(
                     in_dim,
                     out_dim,
                     hidden_dims,
@@ -387,7 +384,7 @@ class ParametricDR(pdutils._ReprMixin):
         else:
             self.model = model
 
-        if isinstance(global_relations, pdrel.Relations):
+        if isinstance(global_relations, relations.Relations):
             self.global_relations = {
                 'rel': global_relations
             }
@@ -398,10 +395,10 @@ class ParametricDR(pdutils._ReprMixin):
         for k in self.global_relations:
             self.global_relations[k]._set_verbosity(self.verbose)
         
-        self.global_relation_data: dict[str, pdreldata.RelationData] = {}
+        self.global_relation_data: dict[str, relationdata.RelationData] = {}
         self._global_relations_computed = False
         
-        if isinstance(batch_relations, pdrel.Relations):
+        if isinstance(batch_relations, relations.Relations):
             self.batch_relations = {
                 'rel': batch_relations
             }
@@ -435,22 +432,22 @@ class ParametricDR(pdutils._ReprMixin):
         if isinstance(self._dataset, Dataset):
             return self._dataset
         else:
-            raise pdexc.NoDatasetRegisteredError(
+            raise exceptions.NoDatasetRegisteredError(
                 "Attempted to access a dataset, but none was registered."
             )
 
     def __call__(self,
-        X: Tensor
+        X: TensorLike
     ) -> torch.Tensor: 
         
         return self.embed(X)
 
     def _call_model_method_by_name(self,
         method_name: str,
-        X: Tensor,
+        X: TensorLike,
     ) -> torch.Tensor:
 
-        X = pdutils._convert_input_to_torch(X)
+        X = utils._convert_input_to_torch(X)
 
         if not hasattr(self.model, method_name):
             raise AttributeError(
@@ -464,13 +461,13 @@ class ParametricDR(pdutils._ReprMixin):
         if self.trained:
             return getattr(self.model, method_name)(X)
         else:
-            raise pdexc.NotTrainedError(
+            raise exceptions.NotTrainedError(
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before calling the model."
             )
 
     def embed(self,
-        X: Tensor
+        X: TensorLike
     ) -> torch.Tensor:
         """Embeds data into the learned embedding space using the model's
         `embed` method.
@@ -484,7 +481,7 @@ class ParametricDR(pdutils._ReprMixin):
         return self._call_model_method_by_name('embed', X)
 
     def classify(self,
-        X: Tensor
+        X: TensorLike
     ) -> torch.Tensor:
         """Classifies data using the model's `classify` method.
 
@@ -633,7 +630,7 @@ class ParametricDR(pdutils._ReprMixin):
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
         if self.verbose:
-            pdutils.report("Registering dataset.")
+            utils.report("Registering dataset.")
         if isinstance(dataset, Dataset):
             self._dataset = dataset
         else:
@@ -641,7 +638,7 @@ class ParametricDR(pdutils._ReprMixin):
 
         self._dataset_registered = True
 
-    def add_to_dataset(self, data: dict[str, Tensor]) -> None:
+    def add_to_dataset(self, data: dict[str, TensorLike]) -> None:
         """Adds additional data entries to an existing dataset.
         
         Useful for injecting additional data entries that can be derived from
@@ -653,28 +650,28 @@ class ParametricDR(pdutils._ReprMixin):
                 dataset.
         """
         if not self._dataset_registered:
-            raise pdexc.NoDatasetRegisteredError(
+            raise exceptions.NoDatasetRegisteredError(
                 "Cannot inject additional data before registering a dataset."
             )
         for k in data:
             if self.verbose:
                 if hasattr(self.dataset, k):
-                    pdutils.report(f"Overwriting entry '{k}' in dataset.")
+                    utils.report(f"Overwriting entry '{k}' in dataset.")
                 else:
-                    pdutils.report(f"Adding entry '{k}' to dataset.")
-            self.dataset.data[k] = pdutils._convert_input_to_torch(data[k])
+                    utils.report(f"Adding entry '{k}' to dataset.")
+            self.dataset.data[k] = utils._convert_input_to_torch(data[k])
 
     def _compute_global_relations(self) -> None:
 
         if not self._dataset_registered:
-            raise pdexc.NoDatasetRegisteredError(
+            raise exceptions.NoDatasetRegisteredError(
                 "Cannot compute global relations before registering dataset."
             )
         assert isinstance(self.dataset, Dataset)
         
         for k in self.global_relations:
             if self.verbose:
-                pdutils.report(
+                utils.report(
                     f"Computing global relations '{k}'."
                 )
             self.global_relation_data[k] = (
@@ -686,16 +683,16 @@ class ParametricDR(pdutils._ReprMixin):
 
     def _prepare_loader(self,
         training_phase: TrainingPhase
-    ) -> td.DataLoader:
+    ) -> torch.utils.data.DataLoader:
 
         if not self._dataset_registered:
-            raise pdexc.NoDatasetRegisteredError(
+            raise exceptions.NoDatasetRegisteredError(
                 "Cannot prepare loader before registering dataset."
             )
         assert isinstance(self.dataset, Dataset)
 
         if not self._global_relations_computed:
-            raise pdexc.RelationsNotComputedError(
+            raise exceptions.RelationsNotComputedError(
                 "Cannot prepare loader before computing global relations."
             )
 
@@ -719,11 +716,11 @@ class ParametricDR(pdutils._ReprMixin):
                 self.global_relation_data[training_phase.edge_rel_key],
                 training_phase.neg_sampling_rate
             )
-            sampler = td.WeightedRandomSampler(
+            sampler = torch.utils.data.WeightedRandomSampler(
                 edge_dataset.weights,
                 num_samples=num_edges
             )
-            dataloader = td.DataLoader(
+            dataloader = torch.utils.data.DataLoader(
                 edge_dataset,
                 batch_size=training_phase.batch_size,
                 collate_fn=_collate_edge_batch,
@@ -731,7 +728,7 @@ class ParametricDR(pdutils._ReprMixin):
             )
         else:
             dataset = self.dataset
-            dataloader = td.DataLoader(
+            dataloader = torch.utils.data.DataLoader(
                 dataset,
                 batch_size=training_phase.batch_size,
                 shuffle=True
@@ -772,7 +769,7 @@ class ParametricDR(pdutils._ReprMixin):
         optimizer = self._prepare_optimizer(training_phase)
 
         if self.verbose:
-            pdutils.report(
+            utils.report(
                 f"Beginning training phase '{training_phase.name}'."
             )
 
@@ -798,7 +795,7 @@ class ParametricDR(pdutils._ReprMixin):
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
-                pdutils.report(
+                utils.report(
                     f"Loss after epoch {epoch}: "
                     f"{training_phase.loss.history[-1]}"
                 )
