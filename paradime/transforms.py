@@ -1,4 +1,4 @@
-"""Relation tranforms for paraDime.
+"""Relation transforms for paraDime.
 
 The :mod:`paradime.tranforms` module defines various classes used to transform
 relations between data points.
@@ -15,7 +15,6 @@ import scipy.sparse
 
 from paradime import relationdata
 from paradime import utils
-from paradime.types import Tensor, Rels
 
 class RelationTransform(utils._ReprMixin):
     """Base class for relation transforms.

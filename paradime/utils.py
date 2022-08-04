@@ -1,11 +1,18 @@
+"""Utility functions for paraDime.
+
+The :mod:`paradime.utils` module implements various utility functions and
+classes, such as a mixin for representations, a rporting method, and input
+conversion methods.
+"""
+
 from datetime import datetime
-import torch
-import numpy as np
-import scipy.sparse
 import functools
 from typing import Union
 
-from paradime.types import Tensor
+import numpy as np
+import torch
+
+from paradime.types import TensorLike
 
 class _ReprMixin():
     """A mixin implementing a simple __repr__."""
@@ -45,33 +52,25 @@ def report(message: str) -> None:
 
     print(now_str + ': ' + message)
 
-def _convert_input_to_numpy(
-    X: Tensor) -> np.ndarray:
+def _convert_input_to_numpy(X: Union[TensorLike, list[float]]) -> np.ndarray:
     
     if isinstance(X, torch.Tensor):
-        X = X.detach().cpu().numpy()
-    elif isinstance(X, scipy.sparse.spmatrix):
-        X = X.toarray()
+        return X.detach().cpu().numpy()
     elif isinstance(X, np.ndarray):
-        pass
+        return X
+    elif isinstance(X, list):
+        return np.array(X)
     else:
         raise TypeError(f"Input type {type(X)} not supported")
 
-    return X
-
-def _convert_input_to_torch(X: Union[Tensor, list[float]]) -> torch.Tensor:
+def _convert_input_to_torch(X: Union[TensorLike, list[float]]) -> torch.Tensor:
 
     if isinstance(X, torch.Tensor):
-        pass
-    elif isinstance(X, scipy.sparse.spmatrix):
-        # TODO: conserve sparseness
-        X = torch.tensor(X.toarray(), dtype=torch.float)
+        return X
     elif isinstance(X, (np.ndarray, list)):
-        X = torch.tensor(X, dtype=torch.float)
+        return torch.tensor(X, dtype=torch.float)
     else:
         raise TypeError(f"Input type {type(X)} not supported")
-
-    return X
 
 @functools.cache
 def _rowcol_to_triu_index(i: int, j: int, dim: int) -> int:

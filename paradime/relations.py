@@ -217,7 +217,7 @@ class NeighborBasedPDist(Relations):
 
     def __init__(self,
         n_neighbors: Optional[int] = None,
-        metric: Optional[BinaryTensorFun] = None,
+        metric: Optional[Union[BinaryTensorFun, str]] = None,
         transform: Optional[Transform] = None,
         verbose: bool = False,
     ):

@@ -1,3 +1,5 @@
+"""Type definitions for paraDime."""
+
 from typing import Tuple, Union, Callable
 
 import numpy as np

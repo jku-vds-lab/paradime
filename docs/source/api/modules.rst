@@ -1,7 +1,7 @@
 ParaDime
 --------
 
-.. automodule:: paradime.paradime
+.. automodule:: paradime.dr
    :members:
 
 Relations
