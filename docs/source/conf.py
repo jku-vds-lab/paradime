@@ -33,8 +33,6 @@ def get_version():
 release = get_version()
 version = release
 
-master_doc = 'source/index'
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
