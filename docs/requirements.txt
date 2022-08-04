@@ -1,7 +1,8 @@
-sphinx>5.0
-sphinx-autodoc-typehints
-sphinx-favicon
-numpy
-scipy
-pynndescent
-torch
+sphinx==5.0.2
+sphinx-rtd-theme==0.4.3
+sphinx-autodoc-typehints==1.18.3
+sphinx-favicon==0.2
+numpy==1.22.3
+scipy==1.7.3
+pynndescent==0.5.7
+torch==1.12.0
