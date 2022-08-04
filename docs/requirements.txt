@@ -1,2 +1,7 @@
 sphinx>5.0
 sphinx-autodoc-typehints
+sphinx-favicon
+numpy
+scipy
+pynndescent
+torch

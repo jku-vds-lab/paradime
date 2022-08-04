@@ -43,6 +43,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.autodoc',
     'sphinx_autodoc_typehints',
+    'sphinx-favicon',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -69,3 +70,31 @@ html_logo = '../../logo/paraDime.svg'
 html_theme_options = {
     'logo_only': True,    
 }
+
+# Favicons (as per https://github.com/tcmetzger/sphinx-favicon)
+
+favicons = [
+    {
+        "rel": "icon",
+        "static-file": "favicons/favicon.svg",
+        "type": "image/svg+xml",
+    },
+    {
+        "rel": "icon",
+        "sizes": "16x16",
+        "static-file": "favicons/favicon16.png",
+        "type": "image/png",
+    },
+    {
+        "rel": "icon",
+        "sizes": "32x32",
+        "static-file": "favicons/favicon32.png",
+        "type": "image/png",
+    },
+    {
+        "rel": "apple-touch-icon",
+        "sizes": "180x180",
+        "static-file": "favicons/favicon180.png",
+        "type": "image/png",
+    },
+]
