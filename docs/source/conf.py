@@ -32,6 +32,7 @@ author = 'Andreas Hinterreiter'
 extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.autodoc',
     'sphinx_autodoc_typehints',
 ]
 
