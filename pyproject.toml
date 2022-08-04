@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paradime"
+authors = [
+    {   name="Andreas Hinterreiter", email="andreas.hinterreiter@jku.at" },
+]
+description = "A framework for parametric dimensionality reduction"
+readme = "README.rst"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = [
+    "version",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/einbandi/paradime"
+"Bug Tracker" = "https://github.com/einbandi/paradime/issues"
+# TODO: add link to docs
+
+[tool.hatch.version]
+path = "paradime/_version.py"

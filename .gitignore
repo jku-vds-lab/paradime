@@ -1,5 +1,6 @@
+dist/
 data/
-paradime/__pycache__
+__pycache__
 docs/build
 .mypy_cache/
 .vscode/
