@@ -14,6 +14,7 @@
 #
 import os
 import sys
+import re
 sys.path.insert(0, os.path.abspath('../..'))
 
 
@@ -23,6 +24,16 @@ project = 'paradime'
 copyright = '2022, Andreas Hinterreiter'
 author = 'Andreas Hinterreiter'
 
+def get_version():
+    for line in open('../../paradime/_version.py').readlines():
+        mo = re.match(r"^__version__ = [\"']([^\"']*)[\"']", line)
+        if mo:
+            return mo.group(1)
+
+release = get_version()
+version = release
+
+master_doc = 'source/index'
 
 # -- General configuration ---------------------------------------------------
 
