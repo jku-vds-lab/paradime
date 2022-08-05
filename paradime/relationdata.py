@@ -514,10 +514,12 @@ class NeighborRelationTuple(RelationData):
     """Relation data in neighborhood tuple form.
     
     Args:
-        relations: A tuple (n, r) of relation data, where n is an
-        array of neighor indices for each data point and r is an
-        array of relation values. Both arrays must be of shape
-        (num_points, num_neighbors).
+        relations: A tuple (n, r) of relation data, where n is an array of
+            neighor indices for each data point and r is an array of relation
+            values. Both arrays must be of shape (num_points, num_neighbors).
+        sort: Sorting option. If `None` is passed (default), values are kept as
+            is. Otherwise, values for each item are sorted either in
+            `'ascending'` or `'descending'` order.
 
     Attributes:
         data: The raw relation data.

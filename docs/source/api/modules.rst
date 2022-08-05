@@ -1,8 +1,12 @@
-ParaDime
---------
+.. _mod-dr:
+
+DR
+---
 
 .. automodule:: paradime.dr
    :members:
+
+.. _mod-relations:
 
 Relations
 ---------
@@ -10,11 +14,15 @@ Relations
 .. automodule:: paradime.relations
    :members:
 
+.. _mod-reldata:
+
 Relation Data
 -------------
 
 .. automodule:: paradime.relationdata
    :members:
+
+.. _mod-transforms:
 
 Transforms
 ----------
@@ -22,11 +30,15 @@ Transforms
 .. automodule:: paradime.transforms
    :members:
 
+.. _mod-loss:
+
 Loss
 ----
 
 .. automodule:: paradime.loss
    :members:
+
+.. _mod-routines:
 
 Routines
 --------

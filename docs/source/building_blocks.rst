@@ -1,5 +1,7 @@
-Building Blocks of a DR Model
-======================================
+.. _building-blocks:
+
+Building Blocks of a paraDime Routine
+=====================================
 
 Short intro
 

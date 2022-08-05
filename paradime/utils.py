@@ -113,6 +113,18 @@ def seed_all(seed:int) -> torch.Generator:
     return gen
     
 def get_color_palette() -> dict[str, str]:
+    """Get the custom paraDime color palette.
+    
+    The palette is usually located in an assets folder in the form of a JSON
+    file. If the JSON file is not found, this method attemps to create it from
+    parsing an SVG file.
+
+    Returns:
+        The color palette as a dict of names and hex color values.
+
+    Raises:
+        FileNotFoundError: If neither the JSON nor the SVG file can be found.
+    """
     import json
     import os
     import sys

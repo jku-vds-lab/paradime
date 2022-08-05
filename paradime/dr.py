@@ -577,6 +577,12 @@ class ParametricDR(utils._ReprMixin):
                 the new default settings. Instead of this, individual
                 parameters can also be passed. For a full list of training
                 phase settings, see :class:`paradime.dr.TrainingPhase`. 
+
+        Raises:
+            :class:`paradime.exceptions.UnsupportedConfigurationError`: This
+                error is raised if the type of 
+                :class:`paradime.relation.Relations` is not compatible with the
+                sampling option.
         """
         if training_phase is None:
             training_phase = copy.deepcopy(self.training_defaults)
