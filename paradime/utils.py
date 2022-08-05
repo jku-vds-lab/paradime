@@ -7,6 +7,7 @@ conversion methods.
 
 from datetime import datetime
 import functools
+import random
 from typing import Union
 
 import numpy as np
@@ -44,6 +45,11 @@ def _addindent(s: str, num_spaces: int) -> str:
     return s
 
 def report(message: str) -> None:
+    """Prints a timestamp followed by the given message.
+    
+    Args:
+        message: The message string to print.    
+    """
     
     now_str = datetime.now().isoformat(
         sep=' ',
@@ -85,3 +91,45 @@ def _rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
 @functools.cache
 def _get_orig_dim(len_triu: int) -> int:
     return int(np.ceil(np.sqrt(len_triu * 2)))
+
+def seed_all(seed:int) -> torch.Generator:
+    """Sets several seeds to maximize reproducibility.
+
+    For infos on reproducibility in PyTorch, see
+    https://pytorch.org/docs/stable/notes/randomness.html.
+    
+    Args:
+        seed: The integer to use as a seed.
+
+    Returns:
+        The :class:`torch.Generator` instance returned by
+        :func:`torch.manual_seed`.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    gen = torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.use_deterministic_algorithms(True)
+    return gen
+    
+def get_color_palette() -> dict[str, str]:
+    import json
+    import os
+    import sys
+
+    utils_path = os.path.dirname(__file__)
+    assets_path = os.path.abspath(os.path.join(utils_path, '../assets'))
+    json_path = os.path.join(assets_path, 'palette.json')
+    svg_path = os.path.join(assets_path, 'palette.svg')
+
+    if not os.path.isfile(json_path):
+        if os.path.isfile(svg_path):
+            sys.path.append(os.path.join(assets_path))
+            from make_palette import make_palette # type:ignore
+            make_palette(svg_path, json_path)
+        else:
+            raise FileNotFoundError(
+                "Could not find JSON or SVG file to create/import palette."
+            )
+    with open(json_path, 'r') as f:
+            return json.load(f)
