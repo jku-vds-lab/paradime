@@ -8,7 +8,7 @@ conversion methods.
 from datetime import datetime
 import functools
 import random
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -146,6 +146,107 @@ def get_color_palette() -> dict[str, str]:
     with open(json_path, 'r') as f:
             return json.load(f)
 
-def scatterplot(coords: TensorLike, labels: Optional[TensorLike]) -> None:
-    ...
-    #TODO: import scatterplot (based on seaborn?)
+def scatterplot(
+    coords: TensorLike,
+    labels: Optional[TensorLike] = None,
+    colormap: Optional[list[str]] = None,
+    labels_to_index: Optional[dict] = None,
+    figsize: tuple[float, float] = (10,10),
+    bgcolor: Optional[str] = "#fcfcfc",
+    legend: bool = True,
+    legend_options: Optional[dict[str, Any]] = None,
+    **kwargs
+) -> None:
+    """Creates a scatter plot of points at the given coordinates.
+
+    Args:
+        coords: The coordinates of the points.
+        labels: An list of categorical labels. If labels are given,
+            a categorical color scale is used and a legend is constructed
+            automatically.
+        colormap: A list of colors to use instead of the default categorical
+            color scale based on the paraDime palette.
+        labels_to_index: A dict that maps labels to indices which are then used
+            to access the colors in the categorical color scale.
+        figsize: Width and height of the plot in inches.
+        bgcolor: The background color of the plot, which by default is also
+            to draw thin outlines around the points.
+        legend: Whether or not to include the automatically created legend.
+        legend_options: A dict of keyword arguments that are passed on to the
+            legend method.
+        kwargs: Any other keyword arguments are passed on to matplotlib's
+            scatter method.
+    """
+
+    from  matplotlib import pyplot as plt
+    from matplotlib import patches
+    
+    if colormap is None:
+        colormap = list(get_color_palette().values())
+
+    colors: Union[str, list[str]]
+    if labels is None:
+        colors = colormap[0]
+    else:
+        unique, indices = np.unique(labels, return_inverse=True)
+        if labels_to_index is not None:
+            indices = [ labels_to_index[i] for i in labels ]
+        colors = [ colormap[i] for i in indices ]
+
+        def rect(color: str) -> patches.Rectangle:
+            return patches.Rectangle((0.,0.), 1., 1., fc=color)
+
+        rects = [ rect(colormap[i]) for i in np.unique(indices) ]
+
+    fig = plt.figure(figsize=figsize)
+    dpi: float = fig.dpi
+
+    if hasattr(kwargs, 's'):
+        pointsize = kwargs['s']
+    elif pointsize is None:
+        min_figsize = min(figsize)
+        pointwidth = min(
+            max(
+                0.005 * min_figsize * dpi,
+                min_figsize * dpi / np.sqrt(len(coords)) * 0.2
+            ),
+            0.02 * min_figsize * dpi
+        )
+        pointsize = pointwidth**2
+    
+    ax = fig.add_subplot(111)
+    ax.set_facecolor(bgcolor)
+
+    scatter_kwargs = {
+        'c': colors,
+        's': pointsize,
+        'edgecolor': bgcolor,
+    }
+    if kwargs:
+        scatter_kwargs = {**scatter_kwargs, **kwargs}
+
+    points = ax.scatter(
+        x=coords[:,0],
+        y=coords[:,1],
+        **scatter_kwargs
+    )
+    ax.set_aspect('equal')
+    ax.axis('off');
+    points.set_linewidths(.08 * np.sqrt(pointsize))
+
+    if legend and labels is not None:
+        legend_kwargs = {
+            'handleheight': 1.,
+            'handlelength': 1.,
+            'loc': 4,
+            'fancybox': False,
+        }
+        if legend_options is not None:
+            legend_kwargs = {**legend_kwargs, **legend_options}
+        
+        ax.legend(rects, unique, **legend_kwargs)
+
+    plt.show()
+
+    return fig
+    
