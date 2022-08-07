@@ -1,6 +1,6 @@
 from ._version import __version__
-from paradime.dr import ParametricDR, TrainingPhase, Dataset
-import paradime.loss
-import paradime.relations
-import paradime.transforms
-import paradime.routines
+# from paradime.dr import ParametricDR, TrainingPhase, Dataset
+# from paradime import loss
+# from paradime import relations
+# from paradime import transforms
+# from paradime import routines

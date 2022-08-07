@@ -449,6 +449,9 @@ class ParametricDR(utils._ReprMixin):
 
         X = utils._convert_input_to_torch(X)
 
+        if self.use_cuda:
+            X = X.cuda()
+
         if not hasattr(self.model, method_name):
             raise AttributeError(
                 f"Model has no {method_name} method."
@@ -465,6 +468,30 @@ class ParametricDR(utils._ReprMixin):
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before calling the model."
             )
+
+    @torch.no_grad()
+    def apply(self,
+        X: TensorLike,
+        method: Optional[str] = None
+    ) -> torch.Tensor:
+        """Applies the model to input data.
+        
+        Applies the model to an input tensor after first switching off
+        PyTorch's automatic gradient tracking. This method also ensures that
+        the resulting output tensor is on the CPU. The `method` parameter
+        allows calling of any of the model's methods in this way, but by
+        default, the model's `__call__` method will be used (which wraps around
+        `forward`.)
+
+        Args:
+            X: A numpy array or PyTorch tensor with the input data.
+            method: The name of the model method to be applied.
+        """
+
+        if method is None:
+            method = '__call__'
+        
+        return self._call_model_method_by_name(method, X).cpu()
 
     def embed(self,
         X: TensorLike
@@ -816,5 +843,10 @@ class ParametricDR(utils._ReprMixin):
         self._prepare_training()
         if not self._global_relations_computed:
             self._compute_global_relations()
+
+        self.model.train()
+
         for tp in self.training_phases:
             self.run_training_phase(tp)
+
+        self.model.eval()

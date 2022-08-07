@@ -27,8 +27,8 @@ def make_palette(in_file: str, out_file: str) -> None:
             match.group(1) if match else "#ffffff",
         ))
     rect_data = np.array(rect_vals, dtype=RECT_DTYPE)
-    # sort fills by x first, then by y
-    rect_data.sort(order=['x','y'])
+    # sort fills by y first, then by x
+    rect_data.sort(order=['y','x'])
 
     # extract text (i.e., tspan) elements and coordinates
     name_vals = []
@@ -39,8 +39,8 @@ def make_palette(in_file: str, out_file: str) -> None:
             tspan.childNodes[0].nodeValue,
         ))
     name_data = np.array(name_vals, dtype=NAME_DTYPE)
-    # sort names by x first, then by y
-    name_data.sort(order=['x','y'])
+    # sort names by y first, then by x
+    name_data.sort(order=['y','x'])
 
     palette = dict(zip(name_data['name'], rect_data['fill']))
 

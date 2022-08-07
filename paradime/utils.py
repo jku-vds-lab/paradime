@@ -8,7 +8,7 @@ conversion methods.
 from datetime import datetime
 import functools
 import random
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -145,3 +145,7 @@ def get_color_palette() -> dict[str, str]:
             )
     with open(json_path, 'r') as f:
             return json.load(f)
+
+def scatterplot(coords: TensorLike, labels: Optional[TensorLike]) -> None:
+    ...
+    #TODO: import scatterplot (based on seaborn?)
