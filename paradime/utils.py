@@ -5,8 +5,8 @@ classes, such as a mixin for representations, a rporting method, and input
 conversion methods.
 """
 
-from datetime import datetime
 import functools
+import logging
 import random
 from typing import Any, Optional, Union
 
@@ -14,6 +14,11 @@ import numpy as np
 import torch
 
 from paradime.types import TensorLike
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s: %(message)s',
+)
 
 class _ReprMixin():
     """A mixin implementing a simple __repr__."""
@@ -44,19 +49,14 @@ def _addindent(s: str, num_spaces: int) -> str:
     s = first + '\n' + s
     return s
 
-def report(message: str) -> None:
-    """Prints a timestamp followed by the given message.
+def log(message: str) -> None:
+    """Calls the paradime logger to print a timestamp and a message.
     
     Args:
         message: The message string to print.    
     """
-    
-    now_str = datetime.now().isoformat(
-        sep=' ',
-        timespec='milliseconds'
-    )[:-2]
-
-    print(now_str + ': ' + message)
+    logger = logging.getLogger('paradime')
+    logger.info(message)
 
 def _convert_input_to_numpy(X: Union[TensorLike, list[float]]) -> np.ndarray:
     
@@ -175,7 +175,7 @@ def scatterplot(
         legend_options: A dict of keyword arguments that are passed on to the
             legend method.
         kwargs: Any other keyword arguments are passed on to matplotlib's
-            scatter method.
+            `scatter` method.
     """
 
     from  matplotlib import pyplot as plt

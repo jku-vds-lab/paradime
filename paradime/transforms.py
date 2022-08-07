@@ -192,7 +192,7 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         self._param_values = np.empty(num_pts, dtype=float)
 
         if self.verbose:
-            utils.report("Calculating probabilities.")
+            utils.log("Calculating probabilities.")
 
         for i, rels in enumerate(relations):
             beta = self.find_param(
@@ -331,7 +331,7 @@ class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
     #     self.sigmas = np.empty(num_pts, dtype=float)
 
     #     if self.verbose:
-    #         utils.report('Calculating probabilities.')
+    #         utils.log('Calculating probabilities.')
 
     #     for i, rels in enumerate(relations):
     #         sigma = _find_sigma(

@@ -663,7 +663,7 @@ class ParametricDR(utils._ReprMixin):
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
         if self.verbose:
-            utils.report("Registering dataset.")
+            utils.log("Registering dataset.")
         if isinstance(dataset, Dataset):
             self._dataset = dataset
         else:
@@ -689,9 +689,9 @@ class ParametricDR(utils._ReprMixin):
         for k in data:
             if self.verbose:
                 if hasattr(self.dataset, k):
-                    utils.report(f"Overwriting entry '{k}' in dataset.")
+                    utils.log(f"Overwriting entry '{k}' in dataset.")
                 else:
-                    utils.report(f"Adding entry '{k}' to dataset.")
+                    utils.log(f"Adding entry '{k}' to dataset.")
             self.dataset.data[k] = utils._convert_input_to_torch(data[k])
 
     def _compute_global_relations(self) -> None:
@@ -704,7 +704,7 @@ class ParametricDR(utils._ReprMixin):
         
         for k in self.global_relations:
             if self.verbose:
-                utils.report(
+                utils.log(
                     f"Computing global relations '{k}'."
                 )
             self.global_relation_data[k] = (
@@ -802,7 +802,7 @@ class ParametricDR(utils._ReprMixin):
         optimizer = self._prepare_optimizer(training_phase)
 
         if self.verbose:
-            utils.report(
+            utils.log(
                 f"Beginning training phase '{training_phase.name}'."
             )
 
@@ -828,7 +828,7 @@ class ParametricDR(utils._ReprMixin):
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
-                utils.report(
+                utils.log(
                     f"Loss after epoch {epoch}: "
                     f"{training_phase.loss.history[-1]}"
                 )
