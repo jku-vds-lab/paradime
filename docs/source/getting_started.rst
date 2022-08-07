@@ -19,13 +19,6 @@ First we import paraDime and torchvision, which gives us convenient access to th
 
 Note that we have already flattened the image data into vectors of length 784 and normalized the values to a range between 0 and 1.
 
-To make this tutorial more reproducible, we ask paraDime to set a number of seeds for several dufferent random number generators that might be used througout the routine:
-
-.. literalinclude:: /../../examples/predefined-routine.py
-   :language: python3
-   :start-after: start-seed
-   :end-before: end-seed
-
 
 Importing a Predefined Routine
 ------------------------------
