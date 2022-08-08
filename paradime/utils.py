@@ -180,6 +180,9 @@ def scatterplot(
             legend method.
         kwargs: Any other keyword arguments are passed on to matplotlib's
             `scatter` method.
+
+    Returns:
+        The :class:`matplotlib.axes.Axes` instance of the plot.
     """
 
     from  matplotlib import pyplot as plt
@@ -250,7 +253,5 @@ def scatterplot(
         
         ax.legend(rects, unique, **legend_kwargs)
 
-    plt.show()
-
-    return fig
+    return ax
     

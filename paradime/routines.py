@@ -104,10 +104,9 @@ class ParametricTSNE(dr.ParametricDR):
 
         global_rel = relations.NeighborBasedPDist(
             transform=[
-                transforms.PerplexityBasedRescale(
-                    perplexity=perplexity
-                ),
+                transforms.PerplexityBasedRescale(perplexity=perplexity),
                 transforms.Symmetrize(),
+                transforms.Normalize(),
             ]
         )
         batch_rel = relations.DifferentiablePDist(

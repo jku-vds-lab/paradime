@@ -461,7 +461,7 @@ class NormalizeRows(RelationTransform):
         return reldata
 
 class Normalize(RelationTransform):
-    """Normalizes the relation values for each data point separately."""
+    """Normalizes all relations at once."""
 
     def transform(self,
         reldata: relationdata.RelationData,
@@ -538,10 +538,10 @@ class StudentTTransform(RelationTransform):
             relationdata.FlatRelationTensor,
         )):
             reldata.data = reldata.data.pow(2.)
-            reldata.data /= self.alpha
-            reldata.data += 1.            
+            reldata.data = reldata.data / self.alpha
+            reldata.data = reldata.data + 1.            
             #TODO: fix RuntimeError due to in-place operation below
-            reldata.data = reldata.data.pow( - (self.alpha + 1.) / 2)
+            reldata.data = reldata.data.pow( - (self.alpha + 1.) / 2.)
         elif isinstance(reldata, (
             relationdata.SquareRelationArray,
             relationdata.TriangularRelationArray,
