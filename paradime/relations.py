@@ -181,14 +181,14 @@ class PDist(Relations):
 
         if self._relations is None or not self.keep_result:
             if self.verbose:
-                utils.report("Calculating pairwise distances.")
+                utils.log("Calculating pairwise distances.")
             self.relations = self._transform(
                 relationdata.relation_factory(
                     distance.pdist(X, metric=self.metric)
                 )
             )
         elif self.verbose:
-            utils.report("Using previously calculated distances.")
+            utils.log("Using previously calculated distances.")
 
         return self.relations
 
@@ -294,7 +294,7 @@ class NeighborBasedPDist(Relations):
         assert self.n_neighbors is not None
         
         if self.verbose:
-            utils.report("Indexing nearest neighbors.")
+            utils.log("Indexing nearest neighbors.")
 
         if self.metric is None:
             self.metric = 'euclidean'

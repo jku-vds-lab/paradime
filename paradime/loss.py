@@ -377,7 +377,7 @@ def kullback_leibler_div(
     eps = torch.tensor(epsilon, dtype=p.dtype)
     kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
     kl_matr.fill_diagonal_(0.)    
-    return torch.sum(kl_matr)
+    return torch.sum(kl_matr) / len(kl_matr)
 
 def cross_entropy_loss(
     p: torch.Tensor,

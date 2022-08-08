@@ -449,6 +449,9 @@ class ParametricDR(utils._ReprMixin):
 
         X = utils._convert_input_to_torch(X)
 
+        if self.use_cuda:
+            X = X.cuda()
+
         if not hasattr(self.model, method_name):
             raise AttributeError(
                 f"Model has no {method_name} method."
@@ -465,6 +468,30 @@ class ParametricDR(utils._ReprMixin):
             "DR instance is not trained yet. Call 'train' with "
             "appropriate arguments before calling the model."
             )
+
+    @torch.no_grad()
+    def apply(self,
+        X: TensorLike,
+        method: Optional[str] = None
+    ) -> torch.Tensor:
+        """Applies the model to input data.
+        
+        Applies the model to an input tensor after first switching off
+        PyTorch's automatic gradient tracking. This method also ensures that
+        the resulting output tensor is on the CPU. The `method` parameter
+        allows calling of any of the model's methods in this way, but by
+        default, the model's `__call__` method will be used (which wraps around
+        `forward`.)
+
+        Args:
+            X: A numpy array or PyTorch tensor with the input data.
+            method: The name of the model method to be applied.
+        """
+
+        if method is None:
+            method = '__call__'
+        
+        return self._call_model_method_by_name(method, X).cpu()
 
     def embed(self,
         X: TensorLike
@@ -636,7 +663,7 @@ class ParametricDR(utils._ReprMixin):
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
         if self.verbose:
-            utils.report("Registering dataset.")
+            utils.log("Registering dataset.")
         if isinstance(dataset, Dataset):
             self._dataset = dataset
         else:
@@ -662,9 +689,9 @@ class ParametricDR(utils._ReprMixin):
         for k in data:
             if self.verbose:
                 if hasattr(self.dataset, k):
-                    utils.report(f"Overwriting entry '{k}' in dataset.")
+                    utils.log(f"Overwriting entry '{k}' in dataset.")
                 else:
-                    utils.report(f"Adding entry '{k}' to dataset.")
+                    utils.log(f"Adding entry '{k}' to dataset.")
             self.dataset.data[k] = utils._convert_input_to_torch(data[k])
 
     def _compute_global_relations(self) -> None:
@@ -677,7 +704,7 @@ class ParametricDR(utils._ReprMixin):
         
         for k in self.global_relations:
             if self.verbose:
-                utils.report(
+                utils.log(
                     f"Computing global relations '{k}'."
                 )
             self.global_relation_data[k] = (
@@ -775,7 +802,7 @@ class ParametricDR(utils._ReprMixin):
         optimizer = self._prepare_optimizer(training_phase)
 
         if self.verbose:
-            utils.report(
+            utils.log(
                 f"Beginning training phase '{training_phase.name}'."
             )
 
@@ -801,7 +828,7 @@ class ParametricDR(utils._ReprMixin):
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
-                utils.report(
+                utils.log(
                     f"Loss after epoch {epoch}: "
                     f"{training_phase.loss.history[-1]}"
                 )
@@ -816,5 +843,10 @@ class ParametricDR(utils._ReprMixin):
         self._prepare_training()
         if not self._global_relations_computed:
             self._compute_global_relations()
+
+        self.model.train()
+
         for tp in self.training_phases:
             self.run_training_phase(tp)
+
+        self.model.eval()
