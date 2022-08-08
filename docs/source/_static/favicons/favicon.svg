@@ -5,12 +5,10 @@
    <cc:Work rdf:about="">
     <dc:format>image/svg+xml</dc:format>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:title/>
    </cc:Work>
   </rdf:RDF>
  </metadata>
  <g transform="translate(-73.766 -127.75)">
-  <path transform="matrix(.26458 0 0 .26458 73.766 127.75)" d="m7.5859 0 53.531 75.152 22.75-20.17-39.162-54.982h-37.119zm91.715 76.648-22.748 20.172 16.66 23.391-85.627 120.21h37.123l85.619-120.21-31.027-43.563z" color="#000000" color-rendering="auto" dominant-baseline="auto" fill="#1c5c60" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
   <path d="m108.61 135.75-26.848 23.805" fill="none" stroke="#23c7a2" stroke-width="7"/>
   <path d="m137.38 127.75-16.217 31.805 16.218 31.805h-8.966l-16.218-31.805 16.218-31.805z" fill="#fc0" opacity=".999" stroke-linecap="round" stroke-width="5.33"/>
   <g fill="#23c7a2" stroke-linecap="round">
@@ -20,5 +18,6 @@
   </g>
   <path d="m108.61 183.37-26.848-23.805" fill="none" stroke="#23c7a2" stroke-width="7"/>
   <path d="m109.21 135.75-27.439 23.805" color="#000000" color-rendering="auto" dominant-baseline="auto" fill="#ba00ff" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
+  <path transform="matrix(.26458 0 0 .26458 73.766 127.75)" d="m7.5859 0 53.531 75.152 22.75-20.17-39.162-54.982h-37.119zm91.715 76.648-22.748 20.172 16.66 23.391-85.627 120.21h37.123l85.619-120.21-31.027-43.563z" color="#000000" color-rendering="auto" dominant-baseline="auto" fill="#1c5c60" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" style="font-feature-settings:normal;font-variant-alternates:normal;font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal;font-variant-position:normal;font-variation-settings:normal;inline-size:0;isolation:auto;mix-blend-mode:normal;shape-margin:0;shape-padding:0;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-orientation:mixed;text-transform:none;white-space:normal"/>
  </g>
 </svg>
