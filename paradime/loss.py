@@ -324,7 +324,7 @@ class CompoundLoss(Loss):
         elif len(weights) != len(self.losses):
             raise ValueError("Size mismatch between losses and weights.")
         
-        self.weights = utils._convert_input_to_torch(weights)
+        self.weights = utils.convert.to_torch(weights)
 
     def checkpoint(self) -> None:
         super().checkpoint()

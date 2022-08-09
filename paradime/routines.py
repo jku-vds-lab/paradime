@@ -32,7 +32,7 @@ class ParametricTSNE(dr.ParametricDR):
       transformed with a :class:`paradime.relations.StudentTTransform`
       followed by :class:`paradime.transform.Normalize`.
     - The first (optional) training phase intializes the model to approximate
-      PCA (see `intialization` below).
+      PCA (see ``intialization`` below).
     - The second training phase uses the Kullback-Leibler divergence to compare
       the relations.
 
@@ -52,7 +52,7 @@ class ParametricTSNE(dr.ParametricDR):
         hidden_dims: Dimensions of hidden layers for the default fully
             connected model that is created if no model is specified.
         initialization: How to pretrain the model to mimic initialization of
-            low-dimensional positions. By default (`'pca'`) the model is
+            low-dimensional positions. By default (``'pca'``) the model is
             pretrained to output an approximation of PCA before beginning the
             main training phase.
         epochs: The number of epochs in the main training phase.
@@ -82,11 +82,11 @@ class ParametricTSNE(dr.ParametricDR):
         hidden_dims: list[int] = [100, 50],        
         initialization: Optional[str] = 'pca',
         epochs: int = 30,
-        init_epochs: int = 5,
-        batch_size: int = 100,
-        init_batch_size: int = 100,
+        init_epochs: int = 10,
+        batch_size: int = 500,
+        init_batch_size: Optional[int] = None,
         learning_rate: float = 0.01,
-        init_learning_rate: float = 0.05,
+        init_learning_rate: Optional[float] = None,
         data_key: str ='data',
         dataset: Optional[Union[Data, dr.Dataset]] = None,
         use_cuda: bool = False,
@@ -97,9 +97,15 @@ class ParametricTSNE(dr.ParametricDR):
         self.epochs = epochs
         self.init_epochs = init_epochs
         self.batch_size = batch_size
-        self.init_batch_size = init_batch_size
+        if init_batch_size is None:
+           self.init_batch_size = self.batch_size
+        else:
+            self.init_batch_size = init_batch_size
         self.learning_rate = learning_rate
-        self.init_learning_rate = init_learning_rate
+        if init_learning_rate is None:
+            self.init_learning_rate = self.learning_rate
+        else:
+            self.init_learning_rate = init_learning_rate
         self.data_key = data_key
 
         global_rel = relations.NeighborBasedPDist(
@@ -141,9 +147,7 @@ class ParametricTSNE(dr.ParametricDR):
             self.add_to_dataset({'pca': pca})
             self.add_training_phase(
                 name="pca_init",
-                loss=pdloss.PositionLoss(
-                    position_key='pca'
-                ),
+                loss=pdloss.PositionLoss(position_key='pca'),
                 batch_size=self.init_batch_size,
                 n_epochs=self.init_epochs,
                 learning_rate=self.init_learning_rate,
@@ -173,7 +177,7 @@ class ParametricUMAP(dr.ParametricDR):
       negative edge sampling is used), transformed with a
       :class:`paradime.relations.ModifiedCauchyTransform`.
     - The first (optional) training phase intializes the model to approximate
-      a spectral embedding based on the global relations (see `intialization`
+      a spectral embedding based on the global relations (see ``intialization``
       below).
     - The second training phase uses corss-entropy to compare the relations.
       This phase uses negative edge sampling.
@@ -197,7 +201,7 @@ class ParametricUMAP(dr.ParametricDR):
         hidden_dims: Dimensions of hidden layers for the default fully
             connected model that is created if no model is specified.
         initialization: How to pretrain the model to mimic initialization of
-            low-dimensional positions. By default (`'spectral'`) the model is
+            low-dimensional positions. By default (``'spectral'``) the model is
             pretrained to output an approximation of a soectral embedding based
             on the high-dimensional relations before beginning the main
             training phase.

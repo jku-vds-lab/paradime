@@ -19,7 +19,7 @@ import torch
 from paradime import utils
 from paradime.types import IndexList, Rels
 
-class RelationData(utils._ReprMixin):
+class RelationData(utils.repr._ReprMixin):
     """Base class for storing relations between data points."""
 
     def __init__(self):
@@ -362,10 +362,10 @@ class TriangularRelationArray(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        dim = utils._get_orig_dim(len(self.data))
+        dim = utils.convert.triu_to_square_dim(len(self.data))
         combos = itertools.combinations(indices, 2)
         return torch.tensor(distance.squareform(np.array(
-            [ self.data[utils._rowcol_to_triu_index(
+            [ self.data[utils.convert.rowcol_to_triu_index(
                 i, j, dim)] for i, j in combos ]
         )))
 
@@ -415,10 +415,10 @@ class TriangularRelationTensor(RelationData):
         self.data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
-        dim = utils._get_orig_dim(len(self.data))
+        dim = utils.convert.triu_to_square_dim(len(self.data))
         combos = itertools.combinations(indices, 2)
         return _tensor_squareform(torch.tensor(
-            [ self.data[utils._rowcol_to_triu_index(
+            [ self.data[utils.convert.rowcol_to_triu_index(
                 i, j, dim)] for i, j in combos ]
         ))
 
@@ -429,7 +429,7 @@ class TriangularRelationTensor(RelationData):
 
     def to_square_tensor(self) -> 'SquareRelationTensor':
         # get dimensions of square matrix
-        d = utils._get_orig_dim(len(self.data))
+        d = utils.convert.triu_to_square_dim(len(self.data))
         matrix = torch.zeros((d, d),
             dtype=self.data.dtype,
             device=self.data.device
@@ -517,9 +517,9 @@ class NeighborRelationTuple(RelationData):
         relations: A tuple (n, r) of relation data, where n is an array of
             neighor indices for each data point and r is an array of relation
             values. Both arrays must be of shape (num_points, num_neighbors).
-        sort: Sorting option. If `None` is passed (default), values are kept as
-            is. Otherwise, values for each item are sorted either in
-            `'ascending'` or `'descending'` order.
+        sort: Sorting option. If None is passed (default), values are kept
+            as is. Otherwise, values for each item are sorted either in
+            ``'ascending'`` or ``'descending'`` order.
 
     Attributes:
         data: The raw relation data.
@@ -669,7 +669,7 @@ def _is_array_tuple(rels: Rels) -> bool:
     return result
 
 def _tensor_squareform(t: torch.Tensor) -> torch.Tensor:
-    d = utils._get_orig_dim(len(t))
+    d = utils.convert.triu_to_square_dim(len(t))
     matrix = torch.zeros((d, d),
         dtype=t.dtype,
         device=t.device

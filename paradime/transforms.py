@@ -16,7 +16,7 @@ import scipy.sparse
 from paradime import relationdata
 from paradime import utils
 
-class RelationTransform(utils._ReprMixin):
+class RelationTransform(utils.repr._ReprMixin):
     """Base class for relation transforms.
     
     Custom transforms should subclass this class.
@@ -192,7 +192,7 @@ class AdaptiveNeighborhoodRescale(RelationTransform):
         self._param_values = np.empty(num_pts, dtype=float)
 
         if self.verbose:
-            utils.log("Calculating probabilities.")
+            utils.logging.log("Calculating probabilities.")
 
         for i, rels in enumerate(relations):
             beta = self.find_param(
@@ -318,33 +318,6 @@ class ConnectivityBasedRescale(AdaptiveNeighborhoodRescale):
     def _set_root_scalar_defaults(self) -> None:
         if not self.kwargs: # check if emtpy
             self.kwargs['bracket'] = [1.e-6, 1.e6]
-
-    # def transform(self,
-    #   reldata: relationdata.RelationData
-    # ) -> relationdata.RelationData:
-
-    #     reldata = reldata.to_array_tuple()
-    #     reldata._remove_self_relations()
-
-    #     neighbors, relations = reldata.data
-    #     num_pts = len(neighbors)
-    #     self.sigmas = np.empty(num_pts, dtype=float)
-
-    #     if self.verbose:
-    #         utils.log('Calculating probabilities.')
-
-    #     for i, rels in enumerate(relations):
-    #         sigma = _find_sigma(
-    #             rels,
-    #             self.n_neighbors,
-    #             **self.kwargs
-    #         )
-    #         self.sigmas[i] = sigma
-    #         relations[i] = _exp_k(rels, sigma)
-
-    #     reldata.data = (neighbors, relations)
-        
-    #     return reldata
 
 def _exp_k(dists: np.ndarray, sigma: float) -> np.ndarray:
     x = dists - dists.min()
@@ -571,9 +544,9 @@ class ModifiedCauchyTransform(RelationTransform):
     """Transforms relations based on a modified Cauchy distribution.
 
     This transform applies a modified Cauchy distribution function
-    to the relations. The distribution's parameters `a` and `b` are determined
-    from the parameters `min_dist` and `spread` by fitting a smooth
-    approximation of an offset exponential decay.
+    to the relations. The distribution's parameters ``a`` and ``b`` are
+    determined from the parameters ``min_dist`` and ``spread`` by fitting a
+    smooth approximation of an offset exponential decay.
     
     Args:
         min_dist: Effective minimum distance of points if the transformed
@@ -659,7 +632,7 @@ class Functional(RelationTransform):
     does not change the data in a way that is incompatible with the
     :class:`paradime.relationdata.RelationData` subclass. The transform can
     also be applied to the whole :class:`paradime.relationdata.RelationData`
-    instance by setting `in_place` to False. In this case, the output is that
+    instance by setting ``in_place`` to False. In this case, the output is that
     of the given function.
     
     Args:
@@ -669,7 +642,7 @@ class Functional(RelationTransform):
             (default), or to the :class:`paradime.relationdata.RelationData`
             itself.
         check_valid: Toggles whether a check for the transformed relation
-            data's validity is performed. If `in_place` is set to False, no
+            data's validity is performed. If ``in_place`` is set to False, no
             checks are performed regardless of this parameter.
     """
 

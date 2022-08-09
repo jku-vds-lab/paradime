@@ -19,16 +19,16 @@ from paradime import loss as pdloss
 from paradime.types import Data, TensorLike
 from paradime import utils 
 
-class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
+class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
     """A dataset for dimensionality reduction.
 
     Constructs a PyTorch :class:torch.utils.data.Dataset from the given data
     in such a way that each item or batch of items is a dictionary with
     PyTorch tensors as values. If only a single numpy array or PyTorch tensor
-    is passed, this data will be available under the 'data' key of the dict.
-    Alternatively, a dict of tensors and/or arrays can be passed, which allows
-    additional data such as labels for supervised learning. By default, an
-    entry for indices is added to the dict, if it is not yet included in the
+    is passed, this data will be available under the ``'data'`` key of the
+    dict. Alternatively, a dict of tensors and/or arrays can be passed, which
+    allows additional data such as labels for supervised learning. By default,
+    an entry for indices is added to the dict, if it is not yet included in the
     passed dict.
 
     Args:
@@ -89,11 +89,11 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
 
     Constructs a PyTorch :class:`torch.utils.data.Dataset` suitable for
     negative sampling from a regular :class:Dataset. The passed relation
-    data, along with the negative samplnig rate `r`, is used to inform the
-    negative sampling process. Each \"item\" `i` of the resulting dataset
-    is essentially a small batch of items, including the item `i` of the
-    original dataset, one of it's actual neighbors, and `r` random other
-    items that are considered to not be neighbors of `i`. Remaining data
+    data, along with the negative samplnig rate ``r``, is used to inform the
+    negative sampling process. Each \"item\" ``i`` of the resulting dataset
+    is essentially a small batch of items, including the item ``i`` of the
+    original dataset, one of it's actual neighbors, and ``r`` random other
+    items that are considered to not be neighbors of ``i``. Remaining data
     from the original dataset is collated using PyTorch's
     :func:`torch.utils.data.default_collate` method.
 
@@ -197,7 +197,7 @@ def _collate_edge_batch(
     
     return collated_batch
 
-class TrainingPhase(utils._ReprMixin):
+class TrainingPhase(utils.repr._ReprMixin):
     """A collection of parameter settings for a single phase in the
     training of a :class:`paradime.dr.ParametricDR` instance.
 
@@ -206,14 +206,14 @@ class TrainingPhase(utils._ReprMixin):
         n_epochs: The number of epochs to run in this phase. In standard
             item-based sampling, the model sees every item once per epoch
             In the case of negative edge sampling, this is not guaranteed, and
-            an epoch instead comprises `batches_per_epoch` batches (see
+            an epoch instead comprises ``batches_per_epoch`` batches (see
             parameter description below).
         batch_size: The number of items/edges in a batch. In standard
             item-based sampling, a batch has this many items, and the edges 
             used for batch relations are constructed from the items. In the
             case of negative edge sampling, this is the number of sampled
             *positive* edges. The total number of edges is higher by a factor
-            of `r + 1`, where `r` is the negative sampling rate. The same holds
+            of ``r + 1``, where ``r`` is the negative sampling rate. The same holds
             for the number of items (apart from possible duplicates, which can
             result from the edge sampling and are removed).
         batches_per_epoch: The number of batches per epoch. This parameter
@@ -224,8 +224,8 @@ class TrainingPhase(utils._ReprMixin):
             sampled *items* roughly equal to the number of items in the
             dataset. If this parameter is set to an integer, an epoch will
             instead comprise that many batches.
-        sampling: The sampling strategy, which can be either `standard`
-            (simple item-based sampling; default) or `negative_edge`
+        sampling: The sampling strategy, which can be either ``'standard'``
+            (simple item-based sampling; default) or ``'negative_edge'``
             (negative edge sampling).
         edge_rel_key: The key under which to find the global relations that
             should be used for negative edge sampling.
@@ -287,7 +287,7 @@ RelOrRelDict = Union[
     dict[str, relations.Relations]
 ]
 
-class ParametricDR(utils._ReprMixin):
+class ParametricDR(utils.repr._ReprMixin):
     """A general parametric dimensionality reduction routine.
 
     Args:
@@ -447,7 +447,7 @@ class ParametricDR(utils._ReprMixin):
         X: TensorLike,
     ) -> torch.Tensor:
 
-        X = utils._convert_input_to_torch(X)
+        X = utils.convert.to_torch(X)
 
         if self.use_cuda:
             X = X.cuda()
@@ -478,10 +478,10 @@ class ParametricDR(utils._ReprMixin):
         
         Applies the model to an input tensor after first switching off
         PyTorch's automatic gradient tracking. This method also ensures that
-        the resulting output tensor is on the CPU. The `method` parameter
+        the resulting output tensor is on the CPU. The ``method`` parameter
         allows calling of any of the model's methods in this way, but by
-        default, the model's `__call__` method will be used (which wraps around
-        `forward`.)
+        default, the model's ``__call__`` method will be used (which wraps
+        around ``forward``.)
 
         Args:
             X: A numpy array or PyTorch tensor with the input data.
@@ -497,7 +497,7 @@ class ParametricDR(utils._ReprMixin):
         X: TensorLike
     ) -> torch.Tensor:
         """Embeds data into the learned embedding space using the model's
-        `embed` method.
+        ``embed`` method.
 
         Args:
             X: A numpy array or PyTorch tensor with the data to be embedded.
@@ -510,7 +510,7 @@ class ParametricDR(utils._ReprMixin):
     def classify(self,
         X: TensorLike
     ) -> torch.Tensor:
-        """Classifies data using the model's `classify` method.
+        """Classifies data using the model's ``classify`` method.
 
         Args:
             X: A numpy array or PyTorch tensor with the data to be classified.
@@ -663,7 +663,7 @@ class ParametricDR(utils._ReprMixin):
                 tensors, or a :class:`paradime.dr.Dataset`.
             """
         if self.verbose:
-            utils.log("Registering dataset.")
+            utils.logging.log("Registering dataset.")
         if isinstance(dataset, Dataset):
             self._dataset = dataset
         else:
@@ -689,10 +689,10 @@ class ParametricDR(utils._ReprMixin):
         for k in data:
             if self.verbose:
                 if hasattr(self.dataset, k):
-                    utils.log(f"Overwriting entry '{k}' in dataset.")
+                    utils.logging.log(f"Overwriting entry '{k}' in dataset.")
                 else:
-                    utils.log(f"Adding entry '{k}' to dataset.")
-            self.dataset.data[k] = utils._convert_input_to_torch(data[k])
+                    utils.logging.log(f"Adding entry '{k}' to dataset.")
+            self.dataset.data[k] = utils.convert.to_torch(data[k])
 
     def _compute_global_relations(self) -> None:
 
@@ -704,7 +704,7 @@ class ParametricDR(utils._ReprMixin):
         
         for k in self.global_relations:
             if self.verbose:
-                utils.log(
+                utils.logging.log(
                     f"Computing global relations '{k}'."
                 )
             self.global_relation_data[k] = (
@@ -785,7 +785,7 @@ class ParametricDR(utils._ReprMixin):
         """Dummy method to inject code between instantiation and training.
         
         To be overwritten by subclasses. This allows, e.g., to add default
-        training phases outside of a subclass's `__init__` but before calling
+        training phases outside of a subclass's ``__init__`` but before calling
         the instance's :meth:`train` method.
         """
         pass
@@ -802,7 +802,7 @@ class ParametricDR(utils._ReprMixin):
         optimizer = self._prepare_optimizer(training_phase)
 
         if self.verbose:
-            utils.log(
+            utils.logging.log(
                 f"Beginning training phase '{training_phase.name}'."
             )
 
@@ -828,7 +828,7 @@ class ParametricDR(utils._ReprMixin):
 
             if self.verbose and epoch % training_phase.report_interval == 0:
                 #TODO: replace by loss reporting mechanism (GH issue #3)
-                utils.log(
+                utils.logging.log(
                     f"Loss after epoch {epoch}: "
                     f"{training_phase.loss.history[-1]}"
                 )

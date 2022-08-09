@@ -14,43 +14,45 @@ mnist = torchvision.datasets.MNIST(
     download=True,
 )
 mnist_data = mnist.data.reshape(-1, 28*28) / 255.
+num_items = 5000
 # end-include-and-data
 
-logger = logging.getLogger('paradime')
-fh = logging.FileHandler('logs/predefined.log')
-logger.__format__
+paradime.utils.logging.set_logfile('logs/predefined.log', 'w')
 
-# start-define-and-train
+# start-define
 dr = paradime.routines.ParametricTSNE(
-    perplexity=50,
-    dataset=mnist_data[:5000],
-    batch_size=500,
-    epochs=50,
+    perplexity=100,
+    dataset=mnist_data[:num_items],
+    epochs=40,
     use_cuda=True,
     verbose=True,
 )
+# end-define
 
+# start-train
 dr.train()
-# end-define-and-train
+# end-train
 
 # start-apply-to-train-set
-reduced = dr.apply(mnist_data[:5000])
+reduced = dr.apply(mnist_data[:num_items])
 # end-apply-to-train-set
 
 # start-plot-train
-paradime.utils.scatterplot(reduced, mnist.targets[:5000])
+paradime.utils.plotting.scatterplot(reduced, mnist.targets[:num_items])
 # end-plot-train
 
 plt.savefig('images/predefined-1.png',
     facecolor='#fcfcfc',
-    edgecolor='None',    
+    edgecolor='None',
+    bbox_inches='tight',
 )
 
 # start-apply-and-plot-rest
-paradime.utils.scatterplot(dr.apply(mnist_data), mnist.targets)
+paradime.utils.plotting.scatterplot(dr.apply(mnist_data), mnist.targets)
 # end-apply-and-plot-rest
 
 plt.savefig('images/predefined-2.png',
     facecolor='#fcfcfc',
-    edgecolor='None',    
+    edgecolor='None',
+    bbox_inches='tight',
 )

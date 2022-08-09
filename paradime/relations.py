@@ -14,15 +14,15 @@ from scipy.spatial import distance
 
 from paradime import relationdata
 from paradime import transforms
-from paradime import utils
 from paradime.types import BinaryTensorFun, TensorLike
+from paradime import utils
 
 Transform = Union[    
     transforms.RelationTransform,
     list[transforms.RelationTransform]
 ]
 
-class Relations(utils._ReprMixin):
+class Relations(utils.repr._ReprMixin):
     """Base class for calculating relations between data points.
     
     Custom relations should subclass this class.
@@ -177,18 +177,18 @@ class PDist(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = utils._convert_input_to_numpy(X)
+        X = utils.convert.to_numpy(X)
 
         if self._relations is None or not self.keep_result:
             if self.verbose:
-                utils.log("Calculating pairwise distances.")
+                utils.logging.log("Calculating pairwise distances.")
             self.relations = self._transform(
                 relationdata.relation_factory(
                     distance.pdist(X, metric=self.metric)
                 )
             )
         elif self.verbose:
-            utils.log("Using previously calculated distances.")
+            utils.logging.log("Using previously calculated distances.")
 
         return self.relations
 
@@ -288,13 +288,13 @@ class NeighborBasedPDist(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = utils._convert_input_to_numpy(X)
+        X = utils.convert.to_numpy(X)
 
         self._set_n_neighbors(X.shape[0])
         assert self.n_neighbors is not None
         
         if self.verbose:
-            utils.log("Indexing nearest neighbors.")
+            utils.logging.log("Indexing nearest neighbors.")
 
         if self.metric is None:
             self.metric = 'euclidean'
@@ -319,7 +319,7 @@ class DifferentiablePDist(Relations):
     
     Args:
         p: Parameter that specificies which p-norm to use as
-            a distance function. Ignored if `metric` is set.
+            a distance function. Ignored if ``metric`` is set.
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
             :class:`paradime.transforms.Transform` instances to be applied to
@@ -351,7 +351,7 @@ class DifferentiablePDist(Relations):
     ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
         
-        If `metric` is not None, a flexible but memory-inefficient
+        If ``metric`` is not None, a flexible but memory-inefficient
         implementation is used instead of PyTorch's
         :func:`torch.nn.functional.pdist`.
 
@@ -374,7 +374,7 @@ class DifferentiablePDist(Relations):
                 "for which no gradients are computed."
             )
 
-        X = utils._convert_input_to_torch(X)
+        X = utils.convert.to_torch(X)
 
         # use memory-inefficient pdist to allow for arbitrary metrics
         # will break for large batches
@@ -453,7 +453,7 @@ class DistsFromTo(Relations):
                 "Missing input for non-precomputed relations."
             )
 
-        X = utils._convert_input_to_torch(X)
+        X = utils.convert.to_torch(X)
 
         if len(X) != 2 or X[0].shape != X[1].shape:
             raise ValueError(
