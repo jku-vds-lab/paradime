@@ -109,6 +109,7 @@ class RelationLoss(Loss):
         data_key: str = 'data',
         global_relation_key: str = 'rel',
         batch_relation_key: str = 'rel',
+        normalize_sub: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -117,6 +118,7 @@ class RelationLoss(Loss):
         self.data_key = data_key
         self.global_relation_key = global_relation_key
         self.batch_relation_key = batch_relation_key
+        self.normalize_sub = normalize_sub
 
         self._use_from_to = False
 
@@ -156,9 +158,12 @@ class RelationLoss(Loss):
                 ).data
             )
         else:
+            global_rel_sub = global_relations[self.global_relation_key].sub(
+                    batch['indices']).to(device)
+            if self.normalize_sub:
+                global_rel_sub = global_rel_sub / global_rel_sub.sum()
             loss = self.loss_function(
-                global_relations[self.global_relation_key].sub(
-                    batch['indices']).to(device),
+                global_rel_sub,
                 batch_relations[self.batch_relation_key].compute_relations(
                     model.embed(batch[self.data_key].to(device))
                 ).data
@@ -377,7 +382,7 @@ def kullback_leibler_div(
     eps = torch.tensor(epsilon, dtype=p.dtype)
     kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
     kl_matr.fill_diagonal_(0.)    
-    return torch.sum(kl_matr) / len(kl_matr)
+    return torch.sum(kl_matr)
 
 def cross_entropy_loss(
     p: torch.Tensor,
