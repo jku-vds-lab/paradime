@@ -56,6 +56,13 @@ class Loss(torch.nn.Module):
         self._accumulated += float(output.detach().cpu().item())
 
     def checkpoint(self) -> None:
+        """Create a checkpoint of the most recent accumulated loss.
+        
+        Appends the value of the most recent accumulated loss to the loss's
+        ``history`` attribute. If the loss is a
+        :class:`paradime.loss.CompoundLoss`, checkpoints are also created for
+        each individual loss.
+        """
         self.history.append(self._accumulated)
         self._accumulated = 0.
 

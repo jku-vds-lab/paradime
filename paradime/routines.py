@@ -25,15 +25,15 @@ class ParametricTSNE(dr.ParametricDR):
     :class:`paradime.paradime.ParametricDR` routine with the following
     specifications:
 
-    - The global relations are :class:`paradime.relations.NeighborBasedPDist`,
+    * The global relations are :class:`paradime.relations.NeighborBasedPDist`,
       transformed with a :class:`paradime.transforms.PerplexityBasedRescale`
       followed by :class:`paradime.tranforms.Symmetrize`.
-    - The batch relations are :class:`paradime.relations.DifferentiablePDist`,
+    * The batch relations are :class:`paradime.relations.DifferentiablePDist`,
       transformed with a :class:`paradime.relations.StudentTTransform`
       followed by :class:`paradime.transform.Normalize`.
-    - The first (optional) training phase intializes the model to approximate
+    * The first (optional) training phase intializes the model to approximate
       PCA (see ``intialization`` below).
-    - The second training phase uses the Kullback-Leibler divergence to compare
+    * The second training phase uses the Kullback-Leibler divergence to compare
       the relations.
 
     Args:
@@ -169,17 +169,17 @@ class ParametricUMAP(dr.ParametricDR):
     :class:`paradime.paradime.ParametricDR` routine with the following
     specifications:
     
-    - The global relations are :class:`paradime.relations.NeighborBasedPDist`,
+    * The global relations are :class:`paradime.relations.NeighborBasedPDist`,
       transformed with a :class:`paradime.transforms.ConnectivityBasedRescale`
       followed by :class:`paradime.tranforms.Symmetrize` with product
       subtraction.
-    - The batch relations are :class:`paradime.relations.DistsFromTo` (since
+    * The batch relations are :class:`paradime.relations.DistsFromTo` (since
       negative edge sampling is used), transformed with a
       :class:`paradime.relations.ModifiedCauchyTransform`.
-    - The first (optional) training phase intializes the model to approximate
+    * The first (optional) training phase intializes the model to approximate
       a spectral embedding based on the global relations (see ``intialization``
       below).
-    - The second training phase uses corss-entropy to compare the relations.
+    * The second training phase uses corss-entropy to compare the relations.
       This phase uses negative edge sampling.
     
     Args:

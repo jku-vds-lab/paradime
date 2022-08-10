@@ -24,6 +24,7 @@ The rest of the 60,000 images can then be easily embedded into the same space wi
    installation
    getting_started
    building_blocks
+   examples
 
 .. toctree::
    :maxdepth: 2

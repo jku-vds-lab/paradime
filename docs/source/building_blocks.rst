@@ -112,30 +112,182 @@ In the example above, we only passed one relation object for each of the two typ
 
 Naming the relations with the keys is necessary to access them properly later on (similar to the :ref:`dataset` attributes explained above). Again, paraDime internally constructs the dictionary for you if you only pass a single relation, for which it will use the default key ``'rel'``.
 
+You can compute all the global relations for a routine by calling its :meth:`~paradime.dr.ParametricDR.compute_relations` method. This will store the relations in the routine's ``global_relation_data`` dictionary in the form of :class:`~paradime.relationdata.RelationData` objects. The :meth:`~paradime.dr.ParametricDR.compute_relations` method is also called before the training automatically in case the relations haven't been computed beforehand.
+
+If you want to experiment with custom distance metrics for the relations, the predefined distance-based relations all accept a ``metric`` parameter. A more general way to customize relations is to subclass the :class:`~paradime.relations.Relations` base class and redefine its :meth:`~paradime.relations.Relations.compute_relations` method. Many customizations can also be performed using :ref:`transforms`, as explained below.
+
 .. _transforms:
 
 Relation Transforms
 -------------------
 
-TODO
+Relation transforms are a concept inspired by existing techniques (e.g., t-SNE and UMAP) which first calculate basic relations, such as pairwise distances between data items, and then rescale and transform them into new relations (sometimes called probabilities or affinities).
+
+You define the transform that you want to apply to relations by passing a :class:`~paradime.transforms.RelationTransform` instance to a :class:`~paradime.relations.Relations` instance with the ``transform`` keyword parameter. For example, to normalize pairwise distances, you would use:
+
+.. code-block:: python3
+
+    dist_norm = paradime.relations.PDist(
+        transform=paradime.transforms.Normalize()
+    )
+
+If you pass a list of transforms instead, they will be applied consecutively.
+
+The easiest way to customize transforms is to use the :class:`~paradime.transforms.Functional` class, which lets you define your own function to be applied to the relation data.
 
 .. _training-phases:
 
 Training Phases
 ---------------
 
-TODO
+The training of a paraDime routine is organized into training *phases*. A training phase is defined by a number of specifications that tell paraDime how to sample batches from the dataset and how to optimize the model. Most importantly, each training phases has a loss specification, which will be covered in detail in the section on :ref:`losses`.
+
+There are two ways to define training phases: during instantiation of a :class:`~paradime.dr.ParametricDR` object using the ``training_phases`` keyword parameter; or at any point later using the :meth:`~paradime.dr.ParametricDR.add_training_phase` method. In the first case, you will have to supply a list of :class:`paradime.dr.TrainingPhase` objects:
+
+.. code-block:: python3
+
+    dr = paradime.dr.ParametricDR(
+        ...,
+        training_phases = [
+            paradime.dr.TrainingPhase(
+                name='init',
+                epochs=20,
+                batch_size=100,
+                ...,
+            ),
+            paradime.dr.TrainingPhase(
+                name='main',
+                epochs=30,
+                ...,
+            )
+        ],
+        ...,
+    )
+
+In the latter case you can use the keyword parameters of the :meth:`~paradime.dr.ParametricDR.add_training_phase` method (but the method also accepts a :class:`paradime.dr.TrainingPhase` object):
+
+.. code-block:: python3
+
+    dr = paradime.dr.ParametricDR(...)
+    
+    dr.add_training_phase(
+        name='init',
+        epochs=20,
+        batch_size=100,
+        ...,
+    )
+    dr.add_training_phase(
+        name='main',
+        epochs=30,
+        ...,
+    )
+
+This is equivalent to the specification during instantiation shown further above.
+
+Each routine also has a default setting for the training routines attached to it. The routine's defaults will be used instead of the global defaults while adding training phases. You can set the defaults either during instantiation (by passing a :class:`paradime.dr.TrainingPhase` as the ``training_defaults`` argument), or at any time later by using the :meth:`paradime.dr.ParametricDR.set_training_defaults` method. The training defaults allow you, for instance, to define a single batch size to be used in all training phases, without having to specify it each time.
+
+This allows setups like the following:
+
+.. code-block:: python3
+
+    dr = paradime.dr.ParametricDR(...)
+    
+    dr.set_training_defaults(
+        batch_size=200,
+        learning_rate=0.02,
+        ...,
+    )
+    dr.add_training_phase(
+        name='init',
+        epochs=10,
+        ...,
+    )
+    dr.add_training_phase(
+        name='main',
+        epochs=20,
+        learning_rate=0.01
+    ...,
+    )
+
+In this example, the first phase ``'init'`` would use the specified default values 200 and 0.02 for the batch size and learning rate, respectively, and the global defaults for all other parameters that are not specifically set. The second trainig phase ``'main'`` would use a learning rate of 0.01 instead.
+
+The names of the training phases are for logging purposes only.
 
 .. _model:
 
 Model
 -----
 
-TODO
+Each training phase consists of a training loop in which a neural network model is applied to a batch of data. By default, paraDime tries to infer the input dimensionality of the dataset, if one is registered at instantiation, and constructs a default fully connected model (see :class:`~paradime.models.FullyConnecteedEmbeddingModel`). You can control the layers of this model using the ``in_dim``, ``out_dim``, and ``hidden_dims`` keyword parameters.
+
+.. code-block:: python3
+
+    dr = paradime.dr.ParametricDR(
+        ...,
+        in_dim=100,  # or let paraDime infer this from the dataset
+        out_dim=3,  # default out_dim is 2
+        hidden_dims=[100, 50],
+        ...,
+    )
+
+For more control, you can directly pass your custom model (any PyTorch :class:`~torch.nn.Module`) using the ``model`` keyword argument:
+
+.. code-block:: python3
+
+    class MyModel(torch.nn.Module):
+        def __init__(in_dim, hidden_dim, out_dim):
+            super().__init__()
+            self.layer1 = torch.nn.Linear(in_dim, hidden_dim)
+            self.layer2 = torch.nn.Linear(hidden_dim, out_dim)
+
+        def forward(x):
+            x = self.layer1(x)
+            x = torch.nn.functional.relu(x)
+            x = self.layer2(x)
+            x = torch.nn.functional.relu(x)
+            return x
+
+    dr = paradime.dr.ParametricDR(
+        ...,
+        model=MyModel(100, 50, 2),
+        ...,
+    )
+
+If you create a :class:`~paradime.dr.ParametricDR` instance with ``use_cuda=True``, the model will be moved to the GPU.
+
+Some default models for different tasks are predefine in the :mod:`paradime.models` module.
 
 .. _losses:
 
 Losses
 ------
 
-TODO
+Arguably the most important setting of each training phase is the loss to be used in the phase. You specify a loss by using a training phase's ``loss`` keyword parameter. The loss defines what to do once a batch of data has been sampled from your dataset. It does this by applying a function with the following call signature in each batch:
+
+.. code-block:: python3
+
+    def forward(
+        model,  # the routine's model
+        global_relation_data,  # the dict of computed RelationData
+        batch_relations,  # the dict of batch-wise Relations
+        batch,  # the sampled batch
+        device,  # the device on which the model is located
+    ) -> torch.Tensor:
+
+As you see, the loss receives the model, the already computed global relation data, the recipes for computing the batch-wise relations, and the sampled batch of data.
+
+Usually you don't have to worry about this, because paraDime comes with four predefined types of losses that should be sufficient for most cases:
+
+* :class:`~paradime.loss.RelationsLoss`: This is arguably the most important loss for DR, because it compares subsets of the global relation data to newly computed batch-wise relations of the data processed by the model. You have to pass the exact comparison function as the ``loss_function`` parameter. You can specify which relations and which part of the data are used by setting the loss's ``global_relation_key``, ``batch_relation_key``, and ``data_key`` parameters. The default values are ``'rel'``, ``'rel'``, and ``'data'``, so they align with the default keys that are used when you only pass a single :class:`~paradmie.relations.Relations` instance and/or a single tensor-like object as ``dataset``. This means, that unless you use multiple relations per training phases, or datasets with mutliple data attributes, you don't have to care about setting these keys properly, as the defaults will be sufficient. You can also customize which model method is used to process the data by setting the ``model-method`` parameter; by default, the model's ``embed`` method is used.
+* :class:`~paradime.loss.ClassificationLoss`: By default, this loss applies the model's ``classify`` method to the batch of input ``'data'``, and compares the results to the dataset's ``'labels'`` using a cross-entropy loss. As the name implies, this loss is meant for classification models or supervised learning, and by itself it disregards the relations entirely. You can customize which model method, data attributes, and loss function to use through its keyword arguments.
+* :class:`~paradime.loss.ReconstructionLoss`: By deafult, this loss applies the model's ``encode`` method, followed by its ``decode`` method, to the batch's ``'data'``. The result is compared to the input data. This loss is meant for training autoencoder models, and it can be customized in a similar way as described above.
+* :class:`~paradime.loss.PositionalLoss`: This loss, by default, compares ``'data'`` batches processed by the model's ``embed`` method to a subset of ``'pos'`` data specified in the dataset. It is especially useful for training phases that should serve as initialization routine. See how the predefined parametric t-SNE routine uses this loss for PCA initialization in one of the examples.
+
+Finally, you can combine multiple losses using a :class:`~paradime.loss.CompoundLoss`. You simply define a list of losses (and an optional list of weights), and this loss will call and sum up the individual losses.
+
+All losses keep track of their accumulated output. paraDime calls each loss's :class:`~paradime.loss.Loss.checkpoint` method once at the end of each epoch to store the most recent value in the loss's ``history`` list. This allows you to inspect the evolution of all losses after the training (but the total loss will also be logged if you set the ``verbose`` flag to True).
+
+Further Information
+-------------------
+
+For all the details on the classes, methods, and parameters, see the :ref:`api`. You will also get a good idea of how to use all these buildings blocks to define a variety of paraDime routines by checking out the :ref:`examples`.

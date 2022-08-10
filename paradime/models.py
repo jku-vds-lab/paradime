@@ -8,8 +8,8 @@ applications, such as a simple
 import torch
 
 class Model(torch.nn.Module):
-    """A placeholder model that has lists all methods used by the losses
-    defined in :mod:`paradime.loss`.
+    """A placeholder model that lists all methods used by the losses defined
+    in :mod:`paradime.loss`.
     """
 
     def embed(self, X: torch.Tensor) -> torch.Tensor:
