@@ -23,7 +23,7 @@ dynamic = [
 [project.urls]
 "Homepage" = "https://github.com/einbandi/paradime"
 "Bug Tracker" = "https://github.com/einbandi/paradime/issues"
-# TODO: add link to docs
+"Documentation" = "https://paradime.readthedocs.io/en/latest/index.html"
 
 [tool.hatch.version]
 path = "paradime/_version.py"
