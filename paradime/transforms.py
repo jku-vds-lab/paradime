@@ -663,7 +663,7 @@ class Functional(RelationTransform):
             reldata.data = self.f(reldata.data)
             if self.check_valid:
                 try:
-                    type(reldata)(reldata.data)  # type:ignore
+                    type(reldata)(reldata.data)  # type: ignore
                 except:
                     raise ValueError(
                         "Transformed relation data no longer compatible "

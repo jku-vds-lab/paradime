@@ -35,14 +35,18 @@ class Loss(torch.nn.Module):
         super().__init__()
 
         if name is None:
-            self.name = self._prefix + "_" + str(id(self))
+            self._name = self._prefix + "_" + str(id(self))
         else:
-            self.name = name
+            self._name = name
 
         self._accumulated: float = 0.
         self.history: list[float] = []
 
         self._history_hook = self.register_forward_hook(self._add_last)
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     def __call__(self, *args, **kwargs) -> torch.Tensor:
         # redefine to call super to improve type hinting
@@ -162,7 +166,7 @@ class RelationLoss(Loss):
                 batch[self.global_relation_key].to(device),
                 batch_relations[self.batch_relation_key].compute_relations(
                     model.embed(batch[self.data_key].to(device))
-                ).data
+                ).data  # type: ignore
             )
         else:
             global_rel_sub = global_relations[self.global_relation_key].sub(
@@ -173,7 +177,7 @@ class RelationLoss(Loss):
                 global_rel_sub,
                 batch_relations[self.batch_relation_key].compute_relations(
                     model.embed(batch[self.data_key].to(device))
-                ).data
+                ).data  # type: ignore
             )
         return loss
     

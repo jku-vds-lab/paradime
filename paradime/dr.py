@@ -334,7 +334,7 @@ class ParametricDR(utils.repr._ReprMixin):
 
     Attributes:
         device: The device on which the model is allocated (depends on the
-            value specified for :attr:`use_cuda`).
+            value specified for ``use_cuda``).
     """
 
     def __init__(self,
@@ -420,11 +420,6 @@ class ParametricDR(utils.repr._ReprMixin):
         if use_cuda:
             self.model.cuda()
 
-        # set device to device of first model parameter
-        for p in self.model.parameters():
-            self.device = p.device
-            break
-
         self.trained = False
 
     @property
@@ -435,6 +430,14 @@ class ParametricDR(utils.repr._ReprMixin):
             raise exceptions.NoDatasetRegisteredError(
                 "Attempted to access a dataset, but none was registered."
             )
+
+    @property
+    def device(self) -> torch.device:
+        device = torch.device('cpu')
+        for p in self.model.parameters():
+            device = p.device
+            break
+        return device
 
     def __call__(self,
         X: TensorLike
@@ -801,6 +804,8 @@ class ParametricDR(utils.repr._ReprMixin):
         dataloader = self._prepare_loader(training_phase)
         optimizer = self._prepare_optimizer(training_phase)
 
+        device = self.device
+
         if self.verbose:
             utils.logging.log(
                 f"Beginning training phase '{training_phase.name}'."
@@ -818,7 +823,7 @@ class ParametricDR(utils.repr._ReprMixin):
                     self.global_relation_data,
                     self.batch_relations,
                     batch,
-                    self.device
+                    device
                 )
 
                 loss.backward()

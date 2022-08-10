@@ -23,7 +23,15 @@ class RelationData(utils.repr._ReprMixin):
     """Base class for storing relations between data points."""
 
     def __init__(self):
-        self.data = None
+        self._data = None
+
+    @property
+    def data(self) -> Rels:
+        return self._data
+
+    @data.setter
+    def data(self, relations: Rels) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         """Subsamples the relation matrix based on item indices.
@@ -161,21 +169,21 @@ def relation_factory(
     """
 
     if _is_square_array(relations):
-        rd = SquareRelationArray(relations)  # type:ignore
+        rd = SquareRelationArray(relations)  # type: ignore
     elif _is_square_tensor(relations):
-        rd = SquareRelationTensor(relations)  # type:ignore
+        rd = SquareRelationTensor(relations)  # type: ignore
     elif _is_square_sparse(relations):
-        rd = SparseRelationArray(relations)  # type:ignore
+        rd = SparseRelationArray(relations)  # type: ignore
     elif _is_triangular_array(relations) and not force_flat:
-        rd = TriangularRelationArray(relations)  # type:ignore
+        rd = TriangularRelationArray(relations)  # type: ignore
     elif _is_triangular_tensor(relations) and not force_flat:
-        rd = TriangularRelationTensor(relations)  # type:ignore
+        rd = TriangularRelationTensor(relations)  # type: ignore
     elif _is_flat_array(relations):
-        rd = FlatRelationArray(relations)  # type:ignore
+        rd = FlatRelationArray(relations)  # type: ignore
     elif _is_flat_tensor(relations):
-        rd = FlatRelationTensor(relations)  # type:ignore
+        rd = FlatRelationTensor(relations)  # type: ignore
     elif _is_array_tuple(relations):
-        rd = NeighborRelationTuple(relations)  # type:ignore
+        rd = NeighborRelationTuple(relations)  # type: ignore
     else:
         raise TypeError(
             f"Input type not supported by {RelationData.__name__}.")
@@ -197,7 +205,15 @@ class FlatRelationArray(RelationData):
         if not _is_flat_array(relations):
             raise ValueError("Expected vector-form array.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> np.ndarray:
+        return self._data
+
+    @data.setter
+    def data(self, relations: np.ndarray) -> None:
+        self._data = relations
 
     def to_flat_array(self) -> 'FlatRelationArray':
         return self
@@ -220,7 +236,15 @@ class FlatRelationTensor(RelationData):
         if not _is_flat_tensor(relations):
             raise ValueError("Expected vector-form tensor.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> torch.Tensor:
+        return self._data
+
+    @data.setter
+    def data(self, relations: torch.Tensor) -> None:
+        self._data = relations
 
     def to_flat_array(self) -> 'FlatRelationArray':
         return FlatRelationArray(self.data.detach().numpy())
@@ -243,7 +267,15 @@ class SquareRelationArray(RelationData):
         if not _is_square_array(relations):
             raise ValueError("Expected square array.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> np.ndarray:
+        return self._data
+
+    @data.setter
+    def data(self, relations: np.ndarray) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
@@ -298,7 +330,15 @@ class SquareRelationTensor(RelationData):
         if not _is_square_tensor(relations):
             raise ValueError("Expected square tensor.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> torch.Tensor:
+        return self._data
+
+    @data.setter
+    def data(self, relations: torch.Tensor) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
@@ -359,7 +399,15 @@ class TriangularRelationArray(RelationData):
         if not _is_triangular_array(relations):
             raise ValueError("Expected vector-form relation array.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> np.ndarray:
+        return self._data
+
+    @data.setter
+    def data(self, relations: np.ndarray) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = utils.convert.triu_to_square_dim(len(self.data))
@@ -412,7 +460,15 @@ class TriangularRelationTensor(RelationData):
         if not _is_triangular_tensor(relations):
             raise ValueError("Expected vector-form relation tensor.")
 
-        self.data = relations
+        self._data = relations
+
+    @property
+    def data(self) -> torch.Tensor:
+        return self._data
+
+    @data.setter
+    def data(self, relations: torch.Tensor) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = utils.convert.triu_to_square_dim(len(self.data))
@@ -466,12 +522,20 @@ class SparseRelationArray(RelationData):
         data: The raw relation data.
     """
 
-    def __init__(self, rels: scipy.sparse.spmatrix):
+    def __init__(self, relations: scipy.sparse.spmatrix):
 
-        if not _is_square_sparse(rels):
+        if not _is_square_sparse(relations):
             raise ValueError("Expected vector-form relation tensor.")
 
-        self.data = rels
+        self._data = relations
+
+    @property
+    def data(self) -> scipy.sparse.spmatrix:
+        return self._data
+
+    @data.setter
+    def data(self, relations: scipy.sparse.spmatrix) -> None:
+        self._data = relations
 
     def sub(self, indices: IndexList) -> torch.Tensor:
         dim = len(indices)
@@ -526,7 +590,7 @@ class NeighborRelationTuple(RelationData):
     """
 
     def __init__(self,
-        relations: tuple[np.ndarray,np.ndarray],
+        relations: tuple[np.ndarray, np.ndarray],
         sort: Optional[Literal['ascending', 'descending']] = None
     ):
 
@@ -551,7 +615,15 @@ class NeighborRelationTuple(RelationData):
                 "or 'descending are supported."
             )
 
-        self.data: tuple[np.ndarray, np.ndarray] = (neighbors, rels)
+        self._data: tuple[np.ndarray, np.ndarray] = (neighbors, rels)
+
+    @property
+    def data(self) -> tuple[np.ndarray,np.ndarray]:
+        return self._data
+
+    @data.setter
+    def data(self, relations: tuple[np.ndarray,np.ndarray]) -> None:
+        self._data = relations
 
     def _where_self_relations(self) -> np.ndarray:
         relations = self.data[0]

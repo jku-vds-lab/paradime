@@ -35,7 +35,7 @@ def get_color_palette() -> dict[str, str]:
     if not os.path.isfile(json_path):
         if os.path.isfile(svg_path):
             sys.path.append(os.path.join(assets_path))
-            from make_palette import make_palette # type:ignore
+            from make_palette import make_palette # type: ignore
             make_palette(svg_path, json_path)
         else:
             raise FileNotFoundError(

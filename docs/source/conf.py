@@ -16,6 +16,9 @@ import os
 import sys
 import re
 sys.path.insert(0, os.path.abspath('../..'))
+sys.path.insert(0, os.path.abspath('sphinxext'))
+
+from ghlink import make_linkcode_resolve
 
 
 # -- Project information -----------------------------------------------------
@@ -42,6 +45,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinx.ext.autodoc',
+    'sphinx.ext.linkcode',
     'sphinx_autodoc_typehints',
     'sphinx-favicon',
 ]
@@ -98,3 +102,19 @@ favicons = [
         "type": "image/png",
     },
 ]
+
+# Mappings for intersphinx
+intersphinx_mapping = {
+    "python": (f"https://docs.python.org/{sys.version_info.major}", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+    "matplotlib": ("https://matplotlib.org/", None),
+    "sklearn": ("http://scikit-learn.org/stable/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
+}
+
+# The following is used by sphinx.ext.linkcode to provide links to github
+linkcode_resolve = make_linkcode_resolve('paradime',
+    u'https://github.com/einbandi/paradime/blob/'
+    '{revision}/{package}/{path}#L{lineno}'
+)

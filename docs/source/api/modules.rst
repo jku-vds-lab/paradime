@@ -45,3 +45,33 @@ Routines
 
 .. automodule:: paradime.routines
    :members:
+
+Utils
+-----
+
+.. automodule:: paradime.utils
+   :members:
+
+Convert
+~~~~~~~
+
+.. automodule:: paradime.utils.convert
+   :members:
+
+Logging
+~~~~~~~
+
+.. automodule:: paradime.utils.logging
+   :members:
+
+Plotting
+~~~~~~~~
+
+.. automodule:: paradime.utils.plotting
+   :members:
+
+Seed
+~~~~
+
+.. automodule:: paradime.utils.seed
+   :members:
