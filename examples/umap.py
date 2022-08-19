@@ -56,7 +56,7 @@ pumap = pddr.ParametricDR(
 # end-setup-dr
 
 # start-compute-rel
-pumap._compute_global_relations()
+pumap.compute_global_relations()
 # end-compute-rel
 
 # start-add-spectral

@@ -288,7 +288,7 @@ class ParametricUMAP(dr.ParametricDR):
         )
 
     def _prepare_training(self) -> None:
-        self._compute_global_relations()
+        self.compute_global_relations()
         if self.initialization == 'spectral':
             spectral = torch.tensor(
                 sklearn.manifold.SpectralEmbedding(

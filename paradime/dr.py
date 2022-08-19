@@ -697,23 +697,34 @@ class ParametricDR(utils.repr._ReprMixin):
                     utils.logging.log(f"Adding entry '{k}' to dataset.")
             self.dataset.data[k] = utils.convert.to_torch(data[k])
 
-    def _compute_global_relations(self) -> None:
+    def compute_global_relations(self, force: bool = False) -> None:
+        """Computes the global relations.
+        
+        The computed relation data are stored in the instance's 
+        ``global_relation_data`` attribute.
+
+        Args:
+            force: Whether or not to force a new computation, when relations
+                have been previously computed for the same instance.
+        """
 
         if not self._dataset_registered:
             raise exceptions.NoDatasetRegisteredError(
                 "Cannot compute global relations before registering dataset."
             )
         assert isinstance(self.dataset, Dataset)
+
+        if force or not self._global_relations_computed:
         
-        for k in self.global_relations:
-            if self.verbose:
-                utils.logging.log(
-                    f"Computing global relations '{k}'."
-                )
-            self.global_relation_data[k] = (
-                self.global_relations[k].compute_relations(
-                    self.dataset.data['data']
-                ))
+            for k in self.global_relations:
+                if self.verbose:
+                    utils.logging.log(
+                        f"Computing global relations '{k}'."
+                    )
+                self.global_relation_data[k] = (
+                    self.global_relations[k].compute_relations(
+                        self.dataset.data['data']
+                    ))
                 
         self._global_relations_computed = True
 
@@ -846,8 +857,7 @@ class ParametricDR(utils.repr._ReprMixin):
         routine.
         """
         self._prepare_training()
-        if not self._global_relations_computed:
-            self._compute_global_relations()
+        self.compute_global_relations()
 
         self.model.train()
 
