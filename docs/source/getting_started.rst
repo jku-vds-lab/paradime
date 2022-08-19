@@ -18,7 +18,7 @@ First, we import the ``routines`` submodule of paraDime, which includes the pred
    :end-before: end-include-and-data
 
 Note that we have already flattened the image data into vectors of length 784 and normalized the values to a range between 0 and 1. ``num_items`` is the size of the MNIST subset that we are going to use for training our routine.
-
+ 
 
 Setting Up a Predefined Routine
 -------------------------------
