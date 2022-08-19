@@ -388,12 +388,13 @@ def kullback_leibler_div(
             near-zero probability values.
             
     Returns:
-        The Kullback-Leibler divergence of the two input tensors.
+        The Kullback-Leibler divergence of the two input tensors, divided by
+        the number of items in the batch.
     """
     eps = torch.tensor(epsilon, dtype=p.dtype)
     kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
     kl_matr.fill_diagonal_(0.)    
-    return torch.sum(kl_matr)
+    return torch.sum(kl_matr) / len(p)
 
 def cross_entropy_loss(
     p: torch.Tensor,
@@ -412,10 +413,11 @@ def cross_entropy_loss(
             near-zero probability values.
             
     Returns:
-        The cross-entropy loss of the two input tensors.
+        The cross-entropy loss of the two input tensors, divided by the number
+        items in the batch.
     """
     attraction = -1. * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
     repulsion = -1. * (1. - p) * torch.log(
         torch.clamp(1 - q, min=epsilon, max=1.0))
     loss = attraction + repulsion
-    return torch.sum(loss)
+    return torch.sum(loss) / len(p)

@@ -48,6 +48,7 @@ batch_rel = pdrel.DistsFromTo(
 # start-setup-dr
 pumap = pddr.ParametricDR(
     dataset=mnist_data[:num_items],
+    hidden_dims=[100,100,100],
     global_relations=global_rel,
     batch_relations=batch_rel,
     use_cuda=True,
@@ -86,12 +87,12 @@ init_phase = pddr.TrainingPhase(
 main_phase = pddr.TrainingPhase(
     name='main_embedding',
     epochs=60,
-    batches_per_epoch=50,
-    batch_size=100,
+    batches_per_epoch=10,
+    batch_size=500,
     sampling='negative_edge',
-    neg_sampling_rate=5,
+    neg_sampling_rate=3,
     loss=pdloss.RelationLoss(loss_function=pdloss.cross_entropy_loss),
-    learning_rate=0.001,
+    learning_rate=0.01,
     report_interval=5,
 )
 # end-setup-main
