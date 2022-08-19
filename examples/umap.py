@@ -74,7 +74,7 @@ pumap.add_to_dataset({
 # start-setup-init
 init_phase = pddr.TrainingPhase(
     name='spectral_init',
-    n_epochs=10,
+    epochs=10,
     batch_size=500,
     loss=pdloss.PositionLoss(position_key='spectral'),
     learning_rate=0.01,
@@ -85,7 +85,7 @@ init_phase = pddr.TrainingPhase(
 # start-setup-main
 main_phase = pddr.TrainingPhase(
     name='main_embedding',
-    n_epochs=60,
+    epochs=60,
     batches_per_epoch=50,
     batch_size=100,
     sampling='negative_edge',

@@ -203,7 +203,7 @@ class TrainingPhase(utils.repr._ReprMixin):
 
     Args:
         name: The name of the training phase.
-        n_epochs: The number of epochs to run in this phase. In standard
+        epochs: The number of epochs to run in this phase. In standard
             item-based sampling, the model sees every item once per epoch
             In the case of negative edge sampling, this is not guaranteed, and
             an epoch instead comprises ``batches_per_epoch`` batches (see
@@ -242,7 +242,7 @@ class TrainingPhase(utils.repr._ReprMixin):
 
     def __init__(self,
         name: Optional[str] = None,
-        n_epochs: int = 5,
+        epochs: int = 5,
         batch_size: int = 50,
         batches_per_epoch: int = -1,
         sampling: Literal['standard', 'negative_edge'] = 'standard',
@@ -256,7 +256,7 @@ class TrainingPhase(utils.repr._ReprMixin):
     ):
         
         self.name = name
-        self.n_epochs = n_epochs
+        self.epochs = epochs
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.sampling = sampling
@@ -525,7 +525,7 @@ class ParametricDR(utils.repr._ReprMixin):
 
     def set_training_defaults(self,
         training_phase: Optional[TrainingPhase] = None,
-        n_epochs: Optional[int] = None,
+        epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
         batches_per_epoch: Optional[int] = None,
         sampling: Optional[Literal['standard', 'negative_edge']] = None,
@@ -554,8 +554,8 @@ class ParametricDR(utils.repr._ReprMixin):
         """
         if training_phase is not None:
             self.training_defaults = copy.deepcopy(training_phase)
-        if n_epochs is not None:
-            self.training_defaults.n_epochs = n_epochs
+        if epochs is not None:
+            self.training_defaults.epochs = epochs
         if batch_size is not None:
             self.training_defaults.batch_size = batch_size
         if batches_per_epoch is not None:
@@ -583,7 +583,7 @@ class ParametricDR(utils.repr._ReprMixin):
     def add_training_phase(self,
         training_phase: Optional[TrainingPhase] = None,
         name: Optional[str] = None,
-        n_epochs: Optional[int] = None,
+        epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
         batches_per_epoch: Optional[int] = None,
         sampling: Optional[Literal['standard', 'negative_edge']] = None,
@@ -620,8 +620,8 @@ class ParametricDR(utils.repr._ReprMixin):
 
         if name is not None:
             training_phase.name = name
-        if n_epochs is not None:
-            training_phase.n_epochs = n_epochs
+        if epochs is not None:
+            training_phase.epochs = epochs
         if batch_size is not None:
             training_phase.batch_size = batch_size
         if batches_per_epoch is not None:
@@ -811,7 +811,7 @@ class ParametricDR(utils.repr._ReprMixin):
                 f"Beginning training phase '{training_phase.name}'."
             )
 
-        for epoch in range(training_phase.n_epochs):
+        for epoch in range(training_phase.epochs):
             
             batch: dict[str, torch.Tensor]
             for batch in dataloader:

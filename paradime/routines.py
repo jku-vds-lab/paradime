@@ -149,7 +149,7 @@ class ParametricTSNE(dr.ParametricDR):
                 name="pca_init",
                 loss=pdloss.PositionLoss(position_key='pca'),
                 batch_size=self.init_batch_size,
-                n_epochs=self.init_epochs,
+                epochs=self.init_epochs,
                 learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
@@ -158,7 +158,7 @@ class ParametricTSNE(dr.ParametricDR):
                 loss_function=pdloss.kullback_leibler_div
             ),
             batch_size=self.batch_size,
-            n_epochs=self.epochs,
+            epochs=self.epochs,
             learning_rate=self.learning_rate,
         )
 
@@ -306,7 +306,7 @@ class ParametricUMAP(dr.ParametricDR):
                     position_key='spectral'
                 ),
                 batch_size=self.init_batch_size,
-                n_epochs=self.init_epochs,
+                epochs=self.init_epochs,
                 learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
@@ -317,6 +317,6 @@ class ParametricUMAP(dr.ParametricDR):
             sampling='negative_edge',
             neg_sampling_rate=self.negative_sampling_rate,
             batch_size=self.batch_size,
-            n_epochs=self.epochs,
+            epochs=self.epochs,
             learning_rate=self.learning_rate,
         )
