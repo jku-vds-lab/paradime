@@ -67,8 +67,8 @@ def rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
         ValueError: For diagonal indices (i.e., if i equals j).
     """
     if i < j:
-        index = round(i * (dim - 1.5) + j - i**2 * 0.5 - 1)
-        return index
+        index = np.round(i * (dim - 1.5) + j - i**2 * 0.5 - 1)
+        return int(index)
     elif i > j:
         return rowcol_to_triu_index(j, i, dim)
     else:

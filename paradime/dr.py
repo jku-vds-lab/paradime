@@ -274,9 +274,7 @@ class TrainingPhase(utils.repr._ReprMixin):
         self.report_interval = report_interval
         self.kwargs = kwargs
 
-        try:
-            self.optimizer([torch.tensor([0.])])
-        except:
+        if not issubclass(self.optimizer, torch.optim.Optimizer):
             raise ValueError(
                 f"{self.optimizer} is not a valid PyTorch optimizer."
             )

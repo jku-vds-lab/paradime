@@ -99,8 +99,7 @@ class Precomputed(Relations):
             transform = transform
         )
 
-        self.relations = self._transform(
-            relationdata.relation_factory(X))
+        self._raw_relations = relationdata.relation_factory(X)
 
     def compute_relations(self,
         X: Optional[TensorLike] = None,
@@ -116,8 +115,7 @@ class Precomputed(Relations):
             the (possibly transformed) relations.
         """
 
-        if X is not None:
-            warnings.warn("Ignoring input for precomputed relations.")
+        self.relations = self._transform(self._raw_relations)        
         
         return self.relations
 
