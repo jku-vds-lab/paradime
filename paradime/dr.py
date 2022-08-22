@@ -719,10 +719,10 @@ class ParametricDR(utils.repr._ReprMixin):
                     utils.logging.log(
                         f"Computing global relations '{k}'."
                     )
-                self.global_relation_data[k] = (
-                    self.global_relations[k].compute_relations(
-                        self.dataset.data['data']
-                    ))
+                rel = self.global_relations[k]
+                self.global_relation_data[k] = rel.compute_relations(
+                    self.dataset.data[rel.data_key]
+                )
                 
         self._global_relations_computed = True
 

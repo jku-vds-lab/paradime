@@ -108,27 +108,28 @@ class RelationLoss(Loss):
 
     Args:
         loss_function: The loss function to be applied.
-        data_key: Key under which to find the data in the input batch.
         global_relation_key: Key under which to find the global relations.
         batch_relation_key: Key under which to find the batch-wise relations.
+        embedding_method: The model method to be used for embedding the batch
+            of input data.
         name: Name of the loss (used by logging functions).
     """
     _prefix = 'rel_loss'
 
     def __init__(self,
         loss_function: BinaryTensorFun,
-        data_key: str = 'data',
         global_relation_key: str = 'rel',
         batch_relation_key: str = 'rel',
+        embedding_method: str = 'embed',
         normalize_sub: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
 
         self.loss_function = loss_function
-        self.data_key = data_key
         self.global_relation_key = global_relation_key
         self.batch_relation_key = batch_relation_key
+        self.embedding_method = embedding_method
         self.normalize_sub = normalize_sub
 
         self._use_from_to = False
@@ -161,11 +162,15 @@ class RelationLoss(Loss):
         device: torch.device,
     ) -> torch.Tensor:
 
+        batch_rel = batch_relations[self.batch_relation_key]
+        data_key = batch_rel.data_key
+
+        embed = getattr(model, self.embedding_method)
+
         if self._use_from_to:
             loss = self.loss_function(
                 batch[self.global_relation_key].to(device),
-                batch_relations[self.batch_relation_key].compute_relations(
-                    model.embed(batch[self.data_key].to(device))
+                batch_rel.compute_relations(embed(batch[data_key].to(device))
                 ).data  # type: ignore
             )
         else:
@@ -175,9 +180,8 @@ class RelationLoss(Loss):
                 global_rel_sub = global_rel_sub / global_rel_sub.sum()
             loss = self.loss_function(
                 global_rel_sub,
-                batch_relations[self.batch_relation_key].compute_relations(
-                    model.embed(batch[self.data_key].to(device))
-                ).data  # type: ignore
+                batch_rel.compute_relations(
+                    embed(batch[data_key].to(device))).data  # type: ignore
             )
         return loss
     
@@ -194,9 +198,8 @@ class ClassificationLoss(Loss):
         data_key: The key under which to find the data in the input batch.
         label_key: The key under which ground truth labels are stored in the
             input batch.
-        global_relation_key: The key under which to find the global relations.
-        batch_relation_key: The key under which to find the batch-wise
-            relations.
+        classification_method: The model method to be used for classifying the
+            batch of input data.
         name: Name of the loss (used by logging functions).
     """
     _prefix = 'class_loss'
@@ -205,6 +208,7 @@ class ClassificationLoss(Loss):
         loss_function: BinaryTensorFun = torch.nn.CrossEntropyLoss(),
         data_key: str = 'data',
         label_key: str = 'labels',
+        classification_method: str = 'classify',
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -212,6 +216,7 @@ class ClassificationLoss(Loss):
         self.loss_function = loss_function
         self.data_key = data_key
         self.label_key = label_key
+        self.classification_method = classification_method
     
     def forward(self,
         model: models.Model,
@@ -221,8 +226,10 @@ class ClassificationLoss(Loss):
         device: torch.device,
         ) -> torch.Tensor:
 
+        classify = getattr(model, self.classification_method)
+
         return self.loss_function(
-            model.classify(batch[self.data_key].to(device)),
+            classify(batch[self.data_key].to(device)),
             batch[self.label_key].to(device)
         )
 
@@ -239,9 +246,8 @@ class PositionLoss(Loss):
         data_key: The key under which to find the data in the input batch.
         position_key: The key under which the ground truth positions are stored
             in the input batch.
-        global_relation_key: The key under which to find the global relations.
-        batch_relation_key: The key under which to find the batch-wise
-            relations.
+        embedding_method: The model method to be used for embedding the batch
+            of input data.
         name: Name of the loss (used by logging functions).
     """
     _prefix = 'pos_loss'
@@ -250,6 +256,7 @@ class PositionLoss(Loss):
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
         data_key: str = 'data',
         position_key: str = 'pos',
+        embedding_method: str = 'embed',
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -257,6 +264,7 @@ class PositionLoss(Loss):
         self.loss_function = loss_function
         self.data_key = data_key
         self.position_key = position_key
+        self.embedding_method = embedding_method
     
     def forward(self,
         model: models.Model,
@@ -266,8 +274,10 @@ class PositionLoss(Loss):
         device: torch.device,
         ) -> torch.Tensor:
 
+        embed = getattr(model, self.embedding_method)
+
         return self.loss_function(
-            model.embed(batch[self.data_key].to(device)),
+            embed(batch[self.data_key].to(device)),
             batch[self.position_key].to(device)
         )
     
@@ -282,6 +292,10 @@ class ReconstructionLoss(Loss):
     Args:
         loss_function: The loss function to be applied.
         data_key: The key under which to find the data in the input batch.
+        encoding_method: The model method to be used for encoding the batch of
+            input data.
+        decoding_method: The model method to be used for decoding the encoded
+            batch of input data.
         name: Name of the loss (used by logging functions).
     """
     _prefix = 'recon_loss'
@@ -289,12 +303,16 @@ class ReconstructionLoss(Loss):
     def __init__(self,
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
         data_key: str = 'data',
+        encoding_method: str = 'encode',
+        decoding_method: str = 'decode',
         name: Optional[str] = None,
         ):
         super().__init__(name)
 
         self.loss_function = loss_function
         self.data_key = data_key
+        self.encoding_method = encoding_method
+        self.decoding_method = decoding_method
 
     def forward(self,
         model: models.Model,
@@ -305,8 +323,10 @@ class ReconstructionLoss(Loss):
         ) -> torch.Tensor:
 
         data = batch[self.data_key].to(device)
+        encode = getattr(model, self.encoding_method)
+        decode = getattr(model, self.decoding_method)
 
-        return self.loss_function(data, model.decode(model.encode(data)))
+        return self.loss_function(data, decode(encode(data)))
 
 class CompoundLoss(Loss):
     """A weighted sum of multiple losses.
