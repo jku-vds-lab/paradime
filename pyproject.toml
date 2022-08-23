@@ -19,6 +19,13 @@ classifiers = [
 dynamic = [
     "version",
 ]
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "pynndescent>=0.5",
+    "torch>=1.11",
+    "scikit-learn>=1.11",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/einbandi/paradime"

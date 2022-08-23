@@ -9,6 +9,7 @@ from typing import Any, Optional, Union
 import numpy as np
 
 from paradime.types import TensorLike
+from paradime.utils.make_palette import make_palette
 
 def get_color_palette() -> dict[str, str]:
     """Get the custom paraDime color palette.
@@ -28,14 +29,11 @@ def get_color_palette() -> dict[str, str]:
     import sys
 
     utils_path = os.path.dirname(__file__)
-    assets_path = os.path.abspath(os.path.join(utils_path, '../../assets'))
-    json_path = os.path.join(assets_path, 'palette.json')
-    svg_path = os.path.join(assets_path, 'palette.svg')
+    json_path = os.path.join(utils_path, 'palette.json')
+    svg_path = os.path.join(utils_path, 'palette.svg')
 
     if not os.path.isfile(json_path):
         if os.path.isfile(svg_path):
-            sys.path.append(os.path.join(assets_path))
-            from make_palette import make_palette # type: ignore
             make_palette(svg_path, json_path)
         else:
             raise FileNotFoundError(
