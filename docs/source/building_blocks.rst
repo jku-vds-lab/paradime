@@ -255,7 +255,7 @@ For more control, you can directly pass your custom model (any PyTorch :class:`~
 
 If you create a :class:`~paradime.dr.ParametricDR` instance with ``use_cuda=True``, the model will be moved to the GPU.
 
-Some default models for different tasks are predefine in the :mod:`paradime.models` module.
+Some default models for different tasks are predefined in the :mod:`paradime.models` module.
 
 .. _losses:
 
