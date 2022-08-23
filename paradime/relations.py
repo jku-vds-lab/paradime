@@ -28,7 +28,10 @@ class Relations(utils.repr._ReprMixin):
     Custom relations should subclass this class.
     """
     
-    def __init__(self, transform: Optional[Transform] = None):
+    def __init__(self,
+        transform: Optional[Transform] = None,
+        data_key: str = 'data',
+    ):
         
         self.transform: list[transforms.RelationTransform]
         if transform is None:
@@ -39,6 +42,8 @@ class Relations(utils.repr._ReprMixin):
             self.transform = transform
 
         self._relations: Optional[relationdata.RelationData] = None
+
+        self.data_key = data_key
 
     @property
     def relations(self) -> relationdata.RelationData:
@@ -130,6 +135,7 @@ class PDist(Relations):
             the relations.
         keep_result: Specifies whether or not to keep previously
             calculated distances, rather than computing new ones.
+        data_key: The key to access the data for which to compute relations.
         verbose: Verbosity toggle.
 
     Attributes:
@@ -142,6 +148,7 @@ class PDist(Relations):
         metric: Optional[Union[Callable, str]] = None,
         transform: Optional[Transform] = None,
         keep_result = True,
+        data_key: str = 'data',
         verbose: bool = False,
     ):
 
@@ -149,7 +156,8 @@ class PDist(Relations):
             metric = 'euclidean'
 
         super().__init__(
-            transform=transform
+            transform=transform,
+            data_key=data_key,
         )
 
         self.metric = metric
@@ -205,6 +213,7 @@ class NeighborBasedPDist(Relations):
         transform: A single :class:`paradime.transforms.Transform` or list of
             :class:`paradime.transforms.Transform` instances to be applied to
             the relations.
+        data_key: The key to access the data for which to compute relations.
         verbose: Verbosity toggle.
 
     Attributes:
@@ -217,11 +226,13 @@ class NeighborBasedPDist(Relations):
         n_neighbors: Optional[int] = None,
         metric: Optional[Union[BinaryTensorFun, str]] = None,
         transform: Optional[Transform] = None,
+        data_key: str = 'data',
         verbose: bool = False,
     ):
 
         super().__init__(
-            transform=transform
+            transform=transform,
+            data_key=data_key,
         )
 
         self.n_neighbors = n_neighbors
@@ -322,6 +333,7 @@ class DifferentiablePDist(Relations):
         transform: A single :class:`paradime.transforms.Transform` or list of
             :class:`paradime.transforms.Transform` instances to be applied to
             the relations.
+        data_key: The key to access the data for which to compute relations.
         verbose: Verbosity toggle.
 
     Attributes:
@@ -334,10 +346,12 @@ class DifferentiablePDist(Relations):
         p: float = 2,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
+        data_key: str = 'data',
     ):
 
         super().__init__(
-            transform=transform
+            transform=transform,
+            data_key=data_key,
         )
 
         self.metric = metric
@@ -410,6 +424,7 @@ class DistsFromTo(Relations):
         transform: A single :class:`paradime.transforms.Transform` or list of
             :class:`paradime.transforms.Transform` instances to be applied to
             the relations.
+        data_key: The key to access the data for which to compute relations.
 
     Attributes:
         relations: A :class:`paradime.relationdata.RelationData` instance
@@ -420,13 +435,15 @@ class DistsFromTo(Relations):
     def __init__(self,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
+        data_key: str = 'data',
     ):
 
         if metric is None:
             metric = (lambda a, b: torch.norm(a - b, dim=1))
 
         super().__init__(
-            transform=transform
+            transform=transform,
+            data_key=data_key,
         )
 
         self.metric = metric
