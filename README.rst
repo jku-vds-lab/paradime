@@ -50,6 +50,6 @@ References
    :target: https://pypi.org/project/paradime/
    :alt: PyPi Version
 
-.. |Black Badge| image:: https://img.shields.io/badge/code style-black-black?&style=flat-square
+.. |Black Badge| image:: https://img.shields.io/badge/code%20style-black-black?&style=flat-square
    :target: https://github.com/psf/black
    :alt: Code Style
