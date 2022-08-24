@@ -17,7 +17,8 @@ from paradime import relationdata
 from paradime import relations
 from paradime import loss as pdloss
 from paradime.types import Data, TensorLike
-from paradime import utils 
+from paradime import utils
+
 
 class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
     """A dataset for dimensionality reduction.
@@ -42,16 +43,16 @@ class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
         self.data: dict[str, torch.Tensor] = {}
 
         if isinstance(data, np.ndarray):
-            self.data['data'] = torch.tensor(data)
+            self.data["data"] = torch.tensor(data)
         elif isinstance(data, torch.Tensor):
-            self.data['data'] = data
+            self.data["data"] = data
         elif isinstance(data, dict):
-            if 'data' not in data:
+            if "data" not in data:
                 raise AttributeError(
                     "Dataset expects a dict with a 'data' entry."
                 )
             for k in data:
-                if len(data[k]) != len(data['data']):
+                if len(data[k]) != len(data["data"]):
                     raise ValueError(
                         "Dataset dict must have values of equal length."
                     )
@@ -70,12 +71,11 @@ class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
                 f"instead of {type(data)}."
             )
 
-        if 'indices' not in self.data:
-            self.data['indices'] = torch.arange(len(self))
-        
+        if "indices" not in self.data:
+            self.data["indices"] = torch.arange(len(self))
 
     def __len__(self) -> int:
-        return len(self.data['data'])
+        return len(self.data["data"])
 
     def __getitem__(self, index) -> dict[str, torch.Tensor]:
         out = {}
@@ -104,7 +104,8 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
         neg_sampling_rate: The negative sampling rate.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         dataset: Dataset,
         relations: relationdata.RelationData,
         neg_sampling_rate: int = 5,
@@ -117,85 +118,66 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return len(self.dataset)
-    
-    def __getitem__(self,
-        idx: int
-    ) -> dict[str, torch.Tensor]:
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         # the following assumes that the input relations are symmetric.
         # if they are not, the rows and cols should be shuffled
 
         # make nsr + 1 copies of row index
         rows = torch.full(
-            (self.neg_sampling_rate + 1,),
-            self.p_ij.row[idx],
-            dtype=torch.long
+            (self.neg_sampling_rate + 1,), self.p_ij.row[idx], dtype=torch.long
         )
 
         # pick nsr + 1 random col indices (negative samples)
         cols = torch.randint(
-            self.p_ij.shape[0],
-            (self.neg_sampling_rate + 1,),
-            dtype=torch.long
+            self.p_ij.shape[0], (self.neg_sampling_rate + 1,), dtype=torch.long
         )
         # set only one to an actual neighbor
         cols[0] = self.p_ij.col[idx]
 
         # make simplified p_ij (0 or 1)
-        p_simpl = torch.zeros(
-            self.neg_sampling_rate + 1,
-            dtype=torch.float32
-        )
+        p_simpl = torch.zeros(self.neg_sampling_rate + 1, dtype=torch.float32)
         p_simpl[0] = 1
 
-        indices = torch.tensor(np.unique(
-            np.concatenate((rows.numpy(), cols.numpy()))
-        ))
+        indices = torch.tensor(
+            np.unique(np.concatenate((rows.numpy(), cols.numpy())))
+        )
 
-        edge_data = {
-            'row': rows,
-            'col': cols,
-            'rel': p_simpl
-        }
+        edge_data = {"row": rows, "col": cols, "rel": p_simpl}
 
-        edge_data['from_to_data'] = torch.stack((
-            self.dataset.data['data'][rows],
-            self.dataset.data['data'][cols]
-        ))
+        edge_data["from_to_data"] = torch.stack(
+            (self.dataset.data["data"][rows], self.dataset.data["data"][cols])
+        )
 
         remaining_data = torch.utils.data.default_collate(
-            [ self.dataset[i] for i in indices ]
+            [self.dataset[i] for i in indices]
         )
 
         return {**remaining_data, **edge_data}
+
 
 def _collate_edge_batch(
     raw_batch: list[dict[str, torch.Tensor]]
 ) -> dict[str, torch.Tensor]:
 
     indices, unique_ids = np.unique(
-        torch.concat([ i['indices'] for i in raw_batch ]),
-        return_index=True
+        torch.concat([i["indices"] for i in raw_batch]), return_index=True
     )
 
-    collated_batch = {
-        'indices': torch.tensor(indices)
-    }
+    collated_batch = {"indices": torch.tensor(indices)}
 
     for k in raw_batch[0]:
-        if k in ['row', 'col', 'rel']:
-            collated_batch[k] = torch.concat(
-                [ i[k] for i in raw_batch]
-            )
-        elif k == 'from_to_data':
-            collated_batch[k] = torch.concat(
-                [ i[k] for i in raw_batch], dim=1
-            )
+        if k in ["row", "col", "rel"]:
+            collated_batch[k] = torch.concat([i[k] for i in raw_batch])
+        elif k == "from_to_data":
+            collated_batch[k] = torch.concat([i[k] for i in raw_batch], dim=1)
         else:
-            collated_batch[k] = torch.concat(
-                [ i[k] for i in raw_batch ]
-            )[torch.tensor(unique_ids)]
-    
+            collated_batch[k] = torch.concat([i[k] for i in raw_batch])[
+                torch.tensor(unique_ids)
+            ]
+
     return collated_batch
+
 
 class TrainingPhase(utils.repr._ReprMixin):
     """A collection of parameter settings for a single phase in the
@@ -209,7 +191,7 @@ class TrainingPhase(utils.repr._ReprMixin):
             an epoch instead comprises ``batches_per_epoch`` batches (see
             parameter description below).
         batch_size: The number of items/edges in a batch. In standard
-            item-based sampling, a batch has this many items, and the edges 
+            item-based sampling, a batch has this many items, and the edges
             used for batch relations are constructed from the items. In the
             case of negative edge sampling, this is the number of sampled
             *positive* edges. The total number of edges is higher by a factor
@@ -240,30 +222,29 @@ class TrainingPhase(utils.repr._ReprMixin):
         kwargs: Additional kwargs that are passed on to the optimizer.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         name: Optional[str] = None,
         epochs: int = 5,
         batch_size: int = 50,
         batches_per_epoch: int = -1,
-        sampling: Literal['standard', 'negative_edge'] = 'standard',
-        edge_rel_key: str = 'rel',
+        sampling: Literal["standard", "negative_edge"] = "standard",
+        edge_rel_key: str = "rel",
         neg_sampling_rate: int = 5,
         loss: pdloss.Loss = pdloss.Loss(),
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
         report_interval: int = 5,
-        **kwargs
+        **kwargs,
     ):
-        
+
         self.name = name
         self.epochs = epochs
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.sampling = sampling
-        if self.sampling not in ['standard', 'negative_edge']:
-            raise ValueError(
-                f"Unknown sampling option {self.sampling}."
-            )
+        if self.sampling not in ["standard", "negative_edge"]:
+            raise ValueError(f"Unknown sampling option {self.sampling}.")
         self.edge_rel_key = edge_rel_key
         self.neg_sampling_rate = neg_sampling_rate
 
@@ -280,10 +261,8 @@ class TrainingPhase(utils.repr._ReprMixin):
             )
 
 
-RelOrRelDict = Union[
-    relations.Relations,
-    dict[str, relations.Relations]
-]
+RelOrRelDict = Union[relations.Relations, dict[str, relations.Relations]]
+
 
 class ParametricDR(utils.repr._ReprMixin):
     """A general parametric dimensionality reduction routine.
@@ -305,11 +284,11 @@ class ParametricDR(utils.repr._ReprMixin):
             Datasets can be registerd after instantiation using the
             :meth:`register_dataset` class method.
         global_relations: A single :class:`paradime.relations.Relations`
-            instance or a dictionary with multiple 
+            instance or a dictionary with multiple
             :class:`paradime.relations.Relations` instances. Global relations
             are calculated once for the whole dataset before training.
         batch_relations: A single :class:`paradime.relations.Relations`
-            instance or a dictionary with multiple 
+            instance or a dictionary with multiple
             :class:`paradime.relations.Relations` instances. Batch relations
             are calculated during training for each batch and are compared to
             an appropriate subset of the global relations by a
@@ -335,7 +314,8 @@ class ParametricDR(utils.repr._ReprMixin):
             value specified for ``use_cuda``).
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         model: Optional[torch.nn.Module] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
@@ -366,7 +346,7 @@ class ParametricDR(utils.repr._ReprMixin):
                 )
             elif in_dim is None and isinstance(self.dataset, Dataset):
                 try:
-                    in_dim = self.dataset.data['data'].shape[-1]
+                    in_dim = self.dataset.data["data"].shape[-1]
                 except KeyError:
                     pass
             if isinstance(in_dim, int):
@@ -374,32 +354,28 @@ class ParametricDR(utils.repr._ReprMixin):
                     in_dim,
                     out_dim,
                     hidden_dims,
-            )
+                )
             else:
                 raise KeyError(
-                        "Failed to infer data dimensionality from dataset."
-                    )
+                    "Failed to infer data dimensionality from dataset."
+                )
         else:
             self.model = model
 
         if isinstance(global_relations, relations.Relations):
-            self.global_relations = {
-                'rel': global_relations
-            }
+            self.global_relations = {"rel": global_relations}
         elif global_relations is not None:
             self.global_relations = global_relations
         else:
             self.global_relations = {}
         for k in self.global_relations:
             self.global_relations[k]._set_verbosity(self.verbose)
-        
+
         self.global_relation_data: dict[str, relationdata.RelationData] = {}
         self._global_relations_computed = False
-        
+
         if isinstance(batch_relations, relations.Relations):
-            self.batch_relations = {
-                'rel': batch_relations
-            }
+            self.batch_relations = {"rel": batch_relations}
         elif batch_relations is not None:
             self.batch_relations = batch_relations
         else:
@@ -431,19 +407,18 @@ class ParametricDR(utils.repr._ReprMixin):
 
     @property
     def device(self) -> torch.device:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
         for p in self.model.parameters():
             device = p.device
             break
         return device
 
-    def __call__(self,
-        X: TensorLike
-    ) -> torch.Tensor: 
-        
+    def __call__(self, X: TensorLike) -> torch.Tensor:
+
         return self.embed(X)
 
-    def _call_model_method_by_name(self,
+    def _call_model_method_by_name(
+        self,
         method_name: str,
         X: TensorLike,
     ) -> torch.Tensor:
@@ -454,9 +429,7 @@ class ParametricDR(utils.repr._ReprMixin):
             X = X.cuda()
 
         if not hasattr(self.model, method_name):
-            raise AttributeError(
-                f"Model has no {method_name} method."
-            )
+            raise AttributeError(f"Model has no {method_name} method.")
         elif not callable(getattr(self.model, method_name)):
             raise ValueError(
                 f"Attribute {method_name} of model is not a callable."
@@ -466,17 +439,16 @@ class ParametricDR(utils.repr._ReprMixin):
             return getattr(self.model, method_name)(X)
         else:
             raise exceptions.NotTrainedError(
-            "DR instance is not trained yet. Call 'train' with "
-            "appropriate arguments before calling the model."
+                "DR instance is not trained yet. Call 'train' with "
+                "appropriate arguments before calling the model."
             )
 
     @torch.no_grad()
-    def apply(self,
-        X: TensorLike,
-        method: Optional[str] = None
+    def apply(
+        self, X: TensorLike, method: Optional[str] = None
     ) -> torch.Tensor:
         """Applies the model to input data.
-        
+
         Applies the model to an input tensor after first switching off
         PyTorch's automatic gradient tracking. This method also ensures that
         the resulting output tensor is on the CPU. The ``method`` parameter
@@ -490,27 +462,23 @@ class ParametricDR(utils.repr._ReprMixin):
         """
 
         if method is None:
-            method = '__call__'
-        
+            method = "__call__"
+
         return self._call_model_method_by_name(method, X).cpu()
 
-    def embed(self,
-        X: TensorLike
-    ) -> torch.Tensor:
+    def embed(self, X: TensorLike) -> torch.Tensor:
         """Embeds data into the learned embedding space using the model's
         ``embed`` method.
 
         Args:
             X: A numpy array or PyTorch tensor with the data to be embedded.
-        
+
         Returns:
             A PyTorch tensor with the embedding coordinates for the data.
         """
-        return self._call_model_method_by_name('embed', X)
+        return self._call_model_method_by_name("embed", X)
 
-    def classify(self,
-        X: TensorLike
-    ) -> torch.Tensor:
+    def classify(self, X: TensorLike) -> torch.Tensor:
         """Classifies data using the model's ``classify`` method.
 
         Args:
@@ -519,21 +487,22 @@ class ParametricDR(utils.repr._ReprMixin):
         Returns:
             A PyTorch tensor with the predicted class labels for the data.
         """
-        return self._call_model_method_by_name('classify', X)       
+        return self._call_model_method_by_name("classify", X)
 
-    def set_training_defaults(self,
+    def set_training_defaults(
+        self,
         training_phase: Optional[TrainingPhase] = None,
         epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
         batches_per_epoch: Optional[int] = None,
-        sampling: Optional[Literal['standard', 'negative_edge']] = None,
+        sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
         loss: Optional[pdloss.Loss] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = 5,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Sets a parametric dimensionality reduction routine's default
         training parameters.
@@ -548,7 +517,7 @@ class ParametricDR(utils.repr._ReprMixin):
             training_phase: A :class:`paradime.dr.TrainingPhase` instance with
                 the new default settings. Instead of this, individual
                 parameters can also be passed. For a full list of training
-                phase settings, see :class:`paradime.dr.TrainingPhase`. 
+                phase settings, see :class:`paradime.dr.TrainingPhase`.
         """
         if training_phase is not None:
             self.training_defaults = copy.deepcopy(training_phase)
@@ -575,23 +544,24 @@ class ParametricDR(utils.repr._ReprMixin):
         if kwargs:
             self.training_defaults.kwargs = {
                 **self.training_defaults.kwargs,
-                **kwargs
+                **kwargs,
             }
 
-    def add_training_phase(self,
+    def add_training_phase(
+        self,
         training_phase: Optional[TrainingPhase] = None,
         name: Optional[str] = None,
         epochs: Optional[int] = None,
         batch_size: Optional[int] = None,
         batches_per_epoch: Optional[int] = None,
-        sampling: Optional[Literal['standard', 'negative_edge']] = None,
+        sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
         loss: Optional[pdloss.Loss] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Adds a single training phase to a parametric dimensionality
         reduction routine.
@@ -604,11 +574,11 @@ class ParametricDR(utils.repr._ReprMixin):
             training_phase: A :class:`paradime.dr.TrainingPhase` instance with
                 the new default settings. Instead of this, individual
                 parameters can also be passed. For a full list of training
-                phase settings, see :class:`paradime.dr.TrainingPhase`. 
+                phase settings, see :class:`paradime.dr.TrainingPhase`.
 
         Raises:
             :class:`paradime.exceptions.UnsupportedConfigurationError`: This
-                error is raised if the type of 
+                error is raised if the type of
                 :class:`paradime.relation.Relations` is not compatible with the
                 sampling option.
         """
@@ -639,30 +609,26 @@ class ParametricDR(utils.repr._ReprMixin):
         if report_interval is not None:
             training_phase.report_interval = report_interval
         if kwargs:
-            training_phase.kwargs = {
-                **training_phase.kwargs,
-                **kwargs
-            }
+            training_phase.kwargs = {**training_phase.kwargs, **kwargs}
 
-        if isinstance(training_phase.loss,
-            (pdloss.RelationLoss, pdloss.CompoundLoss)
+        if isinstance(
+            training_phase.loss, (pdloss.RelationLoss, pdloss.CompoundLoss)
         ):
             training_phase.loss._check_sampling_and_relations(
-                training_phase.sampling,
-                self.batch_relations
+                training_phase.sampling, self.batch_relations
             )
-        
+
         self.training_phases.append(training_phase)
 
     def register_dataset(self, dataset: Union[Data, Dataset]) -> None:
         """Registers a dataset for a parametric dimensionality reduction
         routine.
-        
+
         Args:
             dataset: The data, passed either as a single numpy array or PyTorch
                 tensor, a dictionary containing multiple arrays and/or
                 tensors, or a :class:`paradime.dr.Dataset`.
-            """
+        """
         if self.verbose:
             utils.logging.log("Registering dataset.")
         if isinstance(dataset, Dataset):
@@ -674,11 +640,11 @@ class ParametricDR(utils.repr._ReprMixin):
 
     def add_to_dataset(self, data: dict[str, TensorLike]) -> None:
         """Adds additional data entries to an existing dataset.
-        
+
         Useful for injecting additional data entries that can be derived from
         other data, so that they don't have to be added manually (e.g., PCA
         for pretraining routines).
-        
+
         Args:
             data: A dict containing the data tensors to be added to the
                 dataset.
@@ -697,8 +663,8 @@ class ParametricDR(utils.repr._ReprMixin):
 
     def compute_global_relations(self, force: bool = False) -> None:
         """Computes the global relations.
-        
-        The computed relation data are stored in the instance's 
+
+        The computed relation data are stored in the instance's
         ``global_relation_data`` attribute.
 
         Args:
@@ -713,21 +679,19 @@ class ParametricDR(utils.repr._ReprMixin):
         assert isinstance(self.dataset, Dataset)
 
         if force or not self._global_relations_computed:
-        
+
             for k in self.global_relations:
                 if self.verbose:
-                    utils.logging.log(
-                        f"Computing global relations '{k}'."
-                    )
+                    utils.logging.log(f"Computing global relations '{k}'.")
                 rel = self.global_relations[k]
                 self.global_relation_data[k] = rel.compute_relations(
                     self.dataset.data[rel.data_key]
                 )
-                
+
         self._global_relations_computed = True
 
-    def _prepare_loader(self,
-        training_phase: TrainingPhase
+    def _prepare_loader(
+        self, training_phase: TrainingPhase
     ) -> torch.utils.data.DataLoader:
 
         if not self._dataset_registered:
@@ -741,7 +705,7 @@ class ParametricDR(utils.repr._ReprMixin):
                 "Cannot prepare loader before computing global relations."
             )
 
-        if training_phase.sampling == 'negative_edge':
+        if training_phase.sampling == "negative_edge":
             if training_phase.edge_rel_key not in self.global_relation_data:
                 raise KeyError(
                     f"Global relations '{training_phase.edge_rel_key}' "
@@ -750,61 +714,61 @@ class ParametricDR(utils.repr._ReprMixin):
             if training_phase.batches_per_epoch == -1:
                 num_edges = max(
                     training_phase.batch_size,
-                    int(np.ceil(len(self.dataset)
-                        / (training_phase.neg_sampling_rate + 1)))
+                    int(
+                        np.ceil(
+                            len(self.dataset)
+                            / (training_phase.neg_sampling_rate + 1)
+                        )
+                    ),
                 )
             else:
-                num_edges = (training_phase.batch_size
-                    * training_phase.batches_per_epoch)
+                num_edges = (
+                    training_phase.batch_size * training_phase.batches_per_epoch
+                )
             edge_dataset = NegSampledEdgeDataset(
                 self.dataset,
                 self.global_relation_data[training_phase.edge_rel_key],
-                training_phase.neg_sampling_rate
+                training_phase.neg_sampling_rate,
             )
             sampler = torch.utils.data.WeightedRandomSampler(
-                edge_dataset.weights,
-                num_samples=num_edges
+                edge_dataset.weights, num_samples=num_edges
             )
             dataloader = torch.utils.data.DataLoader(
                 edge_dataset,
                 batch_size=training_phase.batch_size,
                 collate_fn=_collate_edge_batch,
-                sampler=sampler
+                sampler=sampler,
             )
         else:
             dataset = self.dataset
             dataloader = torch.utils.data.DataLoader(
-                dataset,
-                batch_size=training_phase.batch_size,
-                shuffle=True
+                dataset, batch_size=training_phase.batch_size, shuffle=True
             )
 
         return dataloader
 
-    def _prepare_optimizer(self,
-        training_phase: TrainingPhase
+    def _prepare_optimizer(
+        self, training_phase: TrainingPhase
     ) -> torch.optim.Optimizer:
 
         optimizer: torch.optim.Optimizer = training_phase.optimizer(
             self.model.parameters(),
             lr=training_phase.learning_rate,
-            **training_phase.kwargs
+            **training_phase.kwargs,
         )
 
         return optimizer
 
     def _prepare_training(self) -> None:
         """Dummy method to inject code between instantiation and training.
-        
+
         To be overwritten by subclasses. This allows, e.g., to add default
         training phases outside of a subclass's ``__init__`` but before calling
         the instance's :meth:`train` method.
         """
         pass
 
-    def run_training_phase(self,
-        training_phase: TrainingPhase
-    ) -> None:
+    def run_training_phase(self, training_phase: TrainingPhase) -> None:
         """Runs a single training phase.
 
         Args:
@@ -821,7 +785,7 @@ class ParametricDR(utils.repr._ReprMixin):
             )
 
         for epoch in range(training_phase.epochs):
-            
+
             batch: dict[str, torch.Tensor]
             for batch in dataloader:
 
@@ -832,7 +796,7 @@ class ParametricDR(utils.repr._ReprMixin):
                     self.global_relation_data,
                     self.batch_relations,
                     batch,
-                    device
+                    device,
                 )
 
                 loss.backward()
@@ -841,15 +805,14 @@ class ParametricDR(utils.repr._ReprMixin):
             training_phase.loss.checkpoint()
 
             if self.verbose and epoch % training_phase.report_interval == 0:
-                #TODO: replace by loss reporting mechanism (GH issue #3)
+                # TODO: replace by loss reporting mechanism (GH issue #3)
                 utils.logging.log(
                     f"Loss after epoch {epoch}: "
                     f"{training_phase.loss.history[-1]}"
                 )
-            
 
             self.trained = True
-    
+
     def train(self) -> None:
         """Runs all training phases of a parametric dimensionality reduction
         routine.

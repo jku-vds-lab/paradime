@@ -18,6 +18,7 @@ from paradime import relations
 from paradime import transforms
 from paradime.types import Data
 
+
 class ParametricTSNE(dr.ParametricDR):
     """A parametric version of t-SNE.
 
@@ -73,21 +74,22 @@ class ParametricTSNE(dr.ParametricDR):
         verbosity: Verbosity flag.
     """
 
-    def __init__(self,
-        perplexity: float = 30.,
-        alpha: float = 1.,
+    def __init__(
+        self,
+        perplexity: float = 30.0,
+        alpha: float = 1.0,
         model: Optional[models.Model] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
-        hidden_dims: list[int] = [100, 50],        
-        initialization: Optional[str] = 'pca',
+        hidden_dims: list[int] = [100, 50],
+        initialization: Optional[str] = "pca",
         epochs: int = 30,
         init_epochs: int = 10,
         batch_size: int = 500,
         init_batch_size: Optional[int] = None,
         learning_rate: float = 0.01,
         init_learning_rate: Optional[float] = None,
-        data_key: str ='data',
+        data_key: str = "data",
         dataset: Optional[Union[Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
@@ -98,7 +100,7 @@ class ParametricTSNE(dr.ParametricDR):
         self.init_epochs = init_epochs
         self.batch_size = batch_size
         if init_batch_size is None:
-           self.init_batch_size = self.batch_size
+            self.init_batch_size = self.batch_size
         else:
             self.init_batch_size = init_batch_size
         self.learning_rate = learning_rate
@@ -135,32 +137,29 @@ class ParametricTSNE(dr.ParametricDR):
         )
 
     def _prepare_training(self) -> None:
-        if self.initialization == 'pca':
+        if self.initialization == "pca":
             pca = torch.tensor(
                 sklearn.decomposition.PCA(
                     n_components=self.out_dim
-                ).fit_transform(
-                        self.dataset.data[self.data_key]
-                ),
-                dtype=torch.float
+                ).fit_transform(self.dataset.data[self.data_key]),
+                dtype=torch.float,
             )
-            self.add_to_dataset({'pca': pca})
+            self.add_to_dataset({"pca": pca})
             self.add_training_phase(
                 name="pca_init",
-                loss=pdloss.PositionLoss(position_key='pca'),
+                loss=pdloss.PositionLoss(position_key="pca"),
                 batch_size=self.init_batch_size,
                 epochs=self.init_epochs,
                 learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
             name="embedding",
-            loss=pdloss.RelationLoss(
-                loss_function=pdloss.kullback_leibler_div
-            ),
+            loss=pdloss.RelationLoss(loss_function=pdloss.kullback_leibler_div),
             batch_size=self.batch_size,
             epochs=self.epochs,
             learning_rate=self.learning_rate,
         )
+
 
 class ParametricUMAP(dr.ParametricDR):
     """A parametric version of UMAP.
@@ -168,7 +167,7 @@ class ParametricUMAP(dr.ParametricDR):
     This class provides a high-level interface for a
     :class:`paradime.paradime.ParametricDR` routine with the following
     specifications:
-    
+
     * The global relations are :class:`paradime.relations.NeighborBasedPDist`,
       transformed with a :class:`paradime.transforms.ConnectivityBasedRescale`
       followed by :class:`paradime.tranforms.Symmetrize` with product
@@ -181,7 +180,7 @@ class ParametricUMAP(dr.ParametricDR):
       below).
     * The second training phase uses corss-entropy to compare the relations.
       This phase uses negative edge sampling.
-    
+
     Args:
         n_neighbors: The desired number of neighbors used for computing the
             high-dimensional pairwise relations.
@@ -223,7 +222,8 @@ class ParametricUMAP(dr.ParametricDR):
         verbosity: Verbosity flag.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         n_neighbors: int = 30,
         min_dist: float = 0.01,
         spread: float = 1.0,
@@ -232,8 +232,8 @@ class ParametricUMAP(dr.ParametricDR):
         model: Optional[models.Model] = None,
         in_dim: Optional[int] = None,
         out_dim: int = 2,
-        hidden_dims: list[int] = [100, 50],        
-        initialization: Optional[str] = 'spectral',
+        hidden_dims: list[int] = [100, 50],
+        initialization: Optional[str] = "spectral",
         epochs: int = 30,
         init_epochs: int = 5,
         batch_size: int = 10,
@@ -241,7 +241,7 @@ class ParametricUMAP(dr.ParametricDR):
         init_batch_size: int = 100,
         learning_rate: float = 0.005,
         init_learning_rate: float = 0.05,
-        data_key: str ='data',
+        data_key: str = "data",
         dataset: Optional[Union[Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
@@ -259,9 +259,7 @@ class ParametricUMAP(dr.ParametricDR):
 
         global_rel = relations.NeighborBasedPDist(
             transform=[
-                transforms.ConnectivityBasedRescale(
-                    n_neighbors=n_neighbors
-                ),
+                transforms.ConnectivityBasedRescale(n_neighbors=n_neighbors),
                 transforms.Symmetrize(subtract_product=True),
             ]
         )
@@ -289,32 +287,28 @@ class ParametricUMAP(dr.ParametricDR):
 
     def _prepare_training(self) -> None:
         self.compute_global_relations()
-        if self.initialization == 'spectral':
+        if self.initialization == "spectral":
             spectral = torch.tensor(
                 sklearn.manifold.SpectralEmbedding(
-                    affinity='precomputed'
+                    affinity="precomputed"
                 ).fit_transform(
-                        self.global_relation_data['rel'].to_square_array().data
+                    self.global_relation_data["rel"].to_square_array().data
                 ),
-                dtype=torch.float
+                dtype=torch.float,
             )
             spectral = (spectral - spectral.mean(dim=0)) / spectral.std(dim=0)
-            self.add_to_dataset({'spectral': spectral})
+            self.add_to_dataset({"spectral": spectral})
             self.add_training_phase(
                 name="spectral_init",
-                loss=pdloss.PositionLoss(
-                    position_key='spectral'
-                ),
+                loss=pdloss.PositionLoss(position_key="spectral"),
                 batch_size=self.init_batch_size,
                 epochs=self.init_epochs,
                 learning_rate=self.init_learning_rate,
             )
         self.add_training_phase(
             name="embedding",
-            loss=pdloss.RelationLoss(
-                loss_function=pdloss.cross_entropy_loss
-            ),
-            sampling='negative_edge',
+            loss=pdloss.RelationLoss(loss_function=pdloss.cross_entropy_loss),
+            sampling="negative_edge",
             neg_sampling_rate=self.negative_sampling_rate,
             batch_size=self.batch_size,
             epochs=self.epochs,
