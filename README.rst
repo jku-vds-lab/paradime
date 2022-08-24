@@ -28,7 +28,7 @@ For a simple example with one of the predefined paraDime routines, see `Getting 
 
 More detailed information about how to set up cusom routines can be found in `Building Blocks of a paraDime Routine <https://paradime.readthedocs.io/en/latest/building_blocks.html>`_.
 
-For additional examples of varying complexity, see `Examples<https://paradime.readthedocs.io/en/latest/examples.html>`_.
+For additional examples of varying complexity, see `Examples <https://paradime.readthedocs.io/en/latest/examples.html>`_.
 
 References
 ==========
