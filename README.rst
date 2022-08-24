@@ -1,7 +1,7 @@
 paraDime: A Framework for Parametric Dimensionality Reduction
 =============================================================
 
-|ReadTheDocs Badge| |License Badge| |PyPi Badge| |Black Badge|
+|ReadTheDocs Badge|  |License Badge|  |PyPi Badge|  |Black Badge|
 
 paraDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as the relations between data points), so that experimentation with novel DR techniques becomes easy.
 
@@ -42,7 +42,7 @@ References
    :target: https://paradime.readthedocs.io/en/latest/index.html
    :alt: Documentation Status
 
-.. |License Badge| image:: https://img.shields.io/github/license/einbandi/paradime/?style=flat-square
+.. |License Badge| image:: https://img.shields.io/github/license/einbandi/paradime?style=flat-square
    :target: https://mit-license.org/
    :alt: License
 
