@@ -9,7 +9,7 @@ authors = [
 ]
 description = "A framework for parametric dimensionality reduction"
 readme = "README.rst"
-license = { file="LICENSE" }
+license = "MIT"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -24,7 +24,7 @@ dependencies = [
     "scipy>=1.7",
     "pynndescent>=0.5",
     "torch>=1.11",
-    "scikit-learn>=1.11",
+    "scikit-learn>=1.1",
 ]
 
 [project.urls]
