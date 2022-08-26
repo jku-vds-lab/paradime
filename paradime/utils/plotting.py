@@ -4,7 +4,9 @@ The :mod:`paradime.utils.plotting` module implements plotting functions and
 color palette retrieval.
 """
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    import matplotlib.colors
 
 import numpy as np
 
@@ -43,6 +45,10 @@ def get_color_palette() -> dict[str, str]:
             )
     with open(json_path, 'r') as f:
             return json.load(f)
+
+def get_colormap() -> matplotlib.colors.ListedColormap:
+    from _cmap import _paradime_cmap
+    return _paradime_cmap
 
 def scatterplot(
     coords: TensorLike,
