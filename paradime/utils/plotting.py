@@ -28,7 +28,6 @@ def get_color_palette() -> dict[str, str]:
     """
     import json
     import os
-    import sys
 
     utils_path = os.path.dirname(__file__)
     json_path = os.path.join(utils_path, 'palette.json')
@@ -44,8 +43,8 @@ def get_color_palette() -> dict[str, str]:
     with open(json_path, 'r') as f:
             return json.load(f)
 
-def get_colormap() -> matplotlib.colors.ListedColormap:
-    from _cmap import _paradime_cmap
+def get_colormap() -> "matplotlib.colors.ListedColormap":
+    from ._cmap import _paradime_cmap
     return _paradime_cmap
 
 def scatterplot(
@@ -83,7 +82,7 @@ def scatterplot(
         The :class:`matplotlib.axes.Axes` instance of the plot.
     """
 
-    from  matplotlib import pyplot as plt
+    from matplotlib import pyplot as plt
     from matplotlib import patches
     
     if colormap is None:
