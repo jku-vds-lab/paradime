@@ -12,12 +12,13 @@ import torch
 
 from paradime.types import TensorLike
 
+
 def to_numpy(X: Union[TensorLike, list[float]]) -> np.ndarray:
     """Converts a tensor-like object to a NumPy array.
-    
+
     Args:
         X: The tensor-like object to be converted.
-    
+
     Returns:
         The resulting Numpy array.
     """
@@ -31,13 +32,12 @@ def to_numpy(X: Union[TensorLike, list[float]]) -> np.ndarray:
         raise TypeError(f"Input type {type(X)} not supported")
 
 
-
 def to_torch(X: Union[TensorLike, list[float]]) -> torch.Tensor:
     """Converts a tensor-like object to a PyTorch tensor.
-    
+
     Args:
         X: The tensor-like object to be converted.
-    
+
     Returns:
         The resulting PyTorch tensor.
     """
@@ -48,10 +48,11 @@ def to_torch(X: Union[TensorLike, list[float]]) -> torch.Tensor:
     else:
         raise TypeError(f"Input type {type(X)} not supported")
 
+
 @functools.cache
 def rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
     """Converts matrix indices to upper-triangular form.
-    
+
     Converts a pair of row and column indices of a symmetrical square array to
     the corresponding index of the list of upper triangular values.
 
@@ -76,6 +77,7 @@ def rowcol_to_triu_index(i: int, j: int, dim: int) -> int:
             "Indices of diagonal elements cannot be converted to "
             "upper-triangular form."
         )
+
 
 @functools.cache
 def triu_to_square_dim(len_triu: int) -> int:

@@ -29,7 +29,8 @@ class Loss(torch.nn.Module):
     Attributes:
         name: The name of the loss (used by logging functions).
     """
-    _prefix = 'loss'
+
+    _prefix = "loss"
 
     def __init__(self, name: Optional[str] = None):
         super().__init__()
@@ -39,7 +40,7 @@ class Loss(torch.nn.Module):
         else:
             self._name = name
 
-        self._accumulated: float = 0.
+        self._accumulated: float = 0.0
         self.history: list[float] = []
 
         self._history_hook = self.register_forward_hook(self._add_last)
@@ -52,7 +53,8 @@ class Loss(torch.nn.Module):
         # redefine to call super to improve type hinting
         return super().__call__(*args, **kwargs)
 
-    def _add_last(self,
+    def _add_last(
+        self,
         model: torch.nn.Module,
         input: torch.Tensor,
         output: torch.Tensor,
@@ -61,16 +63,17 @@ class Loss(torch.nn.Module):
 
     def checkpoint(self) -> None:
         """Create a checkpoint of the most recent accumulated loss.
-        
+
         Appends the value of the most recent accumulated loss to the loss's
         ``history`` attribute. If the loss is a
         :class:`paradime.loss.CompoundLoss`, checkpoints are also created for
         each individual loss.
         """
         self.history.append(self._accumulated)
-        self._accumulated = 0.
+        self._accumulated = 0.0
 
-    def forward(self,
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
@@ -96,6 +99,7 @@ class Loss(torch.nn.Module):
         """
         raise NotImplementedError()
 
+
 class RelationLoss(Loss):
     """A loss that compares batch-wise relation data against a subset of
     global relation data.
@@ -114,13 +118,15 @@ class RelationLoss(Loss):
             of input data.
         name: Name of the loss (used by logging functions).
     """
-    _prefix = 'rel_loss'
 
-    def __init__(self,
+    _prefix = "rel_loss"
+
+    def __init__(
+        self,
         loss_function: BinaryTensorFun,
-        global_relation_key: str = 'rel',
-        batch_relation_key: str = 'rel',
-        embedding_method: str = 'embed',
+        global_relation_key: str = "rel",
+        batch_relation_key: str = "rel",
+        embedding_method: str = "embed",
         normalize_sub: bool = True,
         name: Optional[str] = None,
     ):
@@ -136,17 +142,16 @@ class RelationLoss(Loss):
 
     def _check_sampling_and_relations(
         self,
-        sampling: Literal['standard', 'negative_edge'],
+        sampling: Literal["standard", "negative_edge"],
         batch_relations: dict[str, relations.Relations],
     ) -> None:
         if isinstance(
-            batch_relations[self.batch_relation_key],
-            relations.DistsFromTo
+            batch_relations[self.batch_relation_key], relations.DistsFromTo
         ):
-            if sampling == 'negative_edge':
+            if sampling == "negative_edge":
                 self._use_from_to = True
-                self.data_key = 'from_to_data'
-                self.global_relation_key = 'rel'
+                self.data_key = "from_to_data"
+                self.global_relation_key = "rel"
             else:
                 raise exceptions.UnsupportedConfigurationError(
                     "RelationLoss does not support DistsFromTo with "
@@ -154,7 +159,8 @@ class RelationLoss(Loss):
                     "sampling instead."
                 )
 
-    def forward(self,
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
@@ -170,21 +176,27 @@ class RelationLoss(Loss):
         if self._use_from_to:
             loss = self.loss_function(
                 batch[self.global_relation_key].to(device),
-                batch_rel.compute_relations(embed(batch[data_key].to(device))
-                ).data  # type: ignore
+                batch_rel.compute_relations(
+                    embed(batch[data_key].to(device))
+                ).data,  # type: ignore
             )
         else:
-            global_rel_sub = global_relations[self.global_relation_key].sub(
-                    batch['indices']).to(device)
+            global_rel_sub = (
+                global_relations[self.global_relation_key]
+                .sub(batch["indices"])
+                .to(device)
+            )
             if self.normalize_sub:
                 global_rel_sub = global_rel_sub / global_rel_sub.sum()
             loss = self.loss_function(
                 global_rel_sub,
                 batch_rel.compute_relations(
-                    embed(batch[data_key].to(device))).data  # type: ignore
+                    embed(batch[data_key].to(device))
+                ).data,  # type: ignore
             )
         return loss
-    
+
+
 class ClassificationLoss(Loss):
     """A loss that compares predicted class labels against ground truth labels.
 
@@ -202,13 +214,15 @@ class ClassificationLoss(Loss):
             batch of input data.
         name: Name of the loss (used by logging functions).
     """
-    _prefix = 'class_loss'
 
-    def __init__(self,
+    _prefix = "class_loss"
+
+    def __init__(
+        self,
         loss_function: BinaryTensorFun = torch.nn.CrossEntropyLoss(),
-        data_key: str = 'data',
-        label_key: str = 'labels',
-        classification_method: str = 'classify',
+        data_key: str = "data",
+        label_key: str = "labels",
+        classification_method: str = "classify",
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -217,21 +231,23 @@ class ClassificationLoss(Loss):
         self.data_key = data_key
         self.label_key = label_key
         self.classification_method = classification_method
-    
-    def forward(self,
+
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         classify = getattr(model, self.classification_method)
 
         return self.loss_function(
             classify(batch[self.data_key].to(device)),
-            batch[self.label_key].to(device)
+            batch[self.label_key].to(device),
         )
+
 
 class PositionLoss(Loss):
     """A loss that compares embedding coordinates to given positions.
@@ -250,13 +266,15 @@ class PositionLoss(Loss):
             of input data.
         name: Name of the loss (used by logging functions).
     """
-    _prefix = 'pos_loss'
 
-    def __init__(self,
+    _prefix = "pos_loss"
+
+    def __init__(
+        self,
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
-        data_key: str = 'data',
-        position_key: str = 'pos',
-        embedding_method: str = 'embed',
+        data_key: str = "data",
+        position_key: str = "pos",
+        embedding_method: str = "embed",
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -265,22 +283,24 @@ class PositionLoss(Loss):
         self.data_key = data_key
         self.position_key = position_key
         self.embedding_method = embedding_method
-    
-    def forward(self,
+
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         embed = getattr(model, self.embedding_method)
 
         return self.loss_function(
             embed(batch[self.data_key].to(device)),
-            batch[self.position_key].to(device)
+            batch[self.position_key].to(device),
         )
-    
+
+
 class ReconstructionLoss(Loss):
     """A simple reconstruction loss for auto-encoding data.
 
@@ -298,15 +318,17 @@ class ReconstructionLoss(Loss):
             batch of input data.
         name: Name of the loss (used by logging functions).
     """
-    _prefix = 'recon_loss'
 
-    def __init__(self,
+    _prefix = "recon_loss"
+
+    def __init__(
+        self,
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
-        data_key: str = 'data',
-        encoding_method: str = 'encode',
-        decoding_method: str = 'decode',
+        data_key: str = "data",
+        encoding_method: str = "encode",
+        decoding_method: str = "decode",
         name: Optional[str] = None,
-        ):
+    ):
         super().__init__(name)
 
         self.loss_function = loss_function
@@ -314,19 +336,21 @@ class ReconstructionLoss(Loss):
         self.encoding_method = encoding_method
         self.decoding_method = decoding_method
 
-    def forward(self,
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
         batch: dict[str, torch.Tensor],
         device: torch.device,
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         data = batch[self.data_key].to(device)
         encode = getattr(model, self.encoding_method)
         decode = getattr(model, self.decoding_method)
 
         return self.loss_function(data, decode(encode(data)))
+
 
 class CompoundLoss(Loss):
     """A weighted sum of multiple losses.
@@ -339,9 +363,11 @@ class CompoundLoss(Loss):
             all losses are weighted equally.
         name: Name of the loss (used by logging functions).
     """
-    _prefix = 'comp_loss'
 
-    def __init__(self,
+    _prefix = "comp_loss"
+
+    def __init__(
+        self,
         losses: list[Loss],
         weights: Union[np.ndarray, torch.Tensor, list[float], None] = None,
         name: Optional[str] = None,
@@ -354,7 +380,7 @@ class CompoundLoss(Loss):
             weights = torch.ones(len(losses))
         elif len(weights) != len(self.losses):
             raise ValueError("Size mismatch between losses and weights.")
-        
+
         self.weights = utils.convert.to_torch(weights)
 
     def checkpoint(self) -> None:
@@ -364,17 +390,15 @@ class CompoundLoss(Loss):
 
     def _check_sampling_and_relations(
         self,
-        sampling: Literal['standard', 'negative_edge'],
+        sampling: Literal["standard", "negative_edge"],
         batch_relations: dict[str, relations.Relations],
     ) -> None:
         for loss in self.losses:
             if isinstance(loss, RelationLoss):
-                loss._check_sampling_and_relations(
-                    sampling,
-                    batch_relations
-                )
-        
-    def forward(self,
+                loss._check_sampling_and_relations(sampling, batch_relations)
+
+    def forward(
+        self,
         model: models.Model,
         global_relations: dict[str, relationdata.RelationData],
         batch_relations: dict[str, relations.Relations],
@@ -382,62 +406,62 @@ class CompoundLoss(Loss):
         device: torch.device,
     ) -> torch.Tensor:
 
-        total_loss = torch.tensor(0.).to(device)
+        total_loss = torch.tensor(0.0).to(device)
 
         for loss, w in zip(self.losses, self.weights.to(device)):
-            loss_val = loss(model, global_relations,
-                batch_relations, batch, device)
+            loss_val = loss(
+                model, global_relations, batch_relations, batch, device
+            )
             total_loss += w * loss_val
 
         return total_loss
 
+
 def kullback_leibler_div(
-    p: torch.Tensor,
-    q: torch.Tensor,
-    epsilon: float = 1.0e-7
+    p: torch.Tensor, q: torch.Tensor, epsilon: float = 1.0e-7
 ) -> torch.Tensor:
     """Kullback-Leibler divergence.
-    
+
     To be used as a loss function in the :class:`paradime.loss.RelationLoss`
     of a parametric DR routine.
-    
+
     Args:
         p: Input tensor containing (a batch of) probabilities.
         q: Input tensor containing (a batch of) probabilities.
         epsilon: Small constant used to avoid numerical errors caused by
             near-zero probability values.
-            
+
     Returns:
         The Kullback-Leibler divergence of the two input tensors, divided by
         the number of items in the batch.
     """
     eps = torch.tensor(epsilon, dtype=p.dtype)
     kl_matr = torch.mul(p, torch.log(p + eps) - torch.log(q + eps))
-    kl_matr.fill_diagonal_(0.)    
+    kl_matr.fill_diagonal_(0.0)
     return torch.sum(kl_matr) / len(p)
 
+
 def cross_entropy_loss(
-    p: torch.Tensor,
-    q: torch.Tensor,
-    epsilon: float = 1.0e-7
+    p: torch.Tensor, q: torch.Tensor, epsilon: float = 1.0e-7
 ) -> torch.Tensor:
     """Cross-entropy loss as used by UMAP.
-    
+
     To be used as a loss function in the :class:`paradime.loss.RelationLoss`
     of a parametric DR routine.
-    
+
     Args:
         p: Input tensor containing (a batch of) probabilities.
         q: Input tensor containing (a batch of) probabilities.
         epsilon: Small constant used to avoid numerical errors caused by
             near-zero probability values.
-            
+
     Returns:
         The cross-entropy loss of the two input tensors, divided by the number
         items in the batch.
     """
-    attraction = -1. * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
-    repulsion = -1. * (1. - p) * torch.log(
-        torch.clamp(1 - q, min=epsilon, max=1.0))
+    attraction = -1.0 * p * torch.log(torch.clamp(q, min=epsilon, max=1.0))
+    repulsion = (
+        -1.0 * (1.0 - p) * torch.log(torch.clamp(1 - q, min=epsilon, max=1.0))
+    )
     loss = attraction + repulsion
     return torch.sum(loss) / len(p)

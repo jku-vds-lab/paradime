@@ -17,22 +17,23 @@ from paradime import transforms
 from paradime.types import BinaryTensorFun, TensorLike
 from paradime import utils
 
-Transform = Union[    
-    transforms.RelationTransform,
-    list[transforms.RelationTransform]
+Transform = Union[
+    transforms.RelationTransform, list[transforms.RelationTransform]
 ]
+
 
 class Relations(utils.repr._ReprMixin):
     """Base class for calculating relations between data points.
-    
+
     Custom relations should subclass this class.
     """
-    
-    def __init__(self,
+
+    def __init__(
+        self,
         transform: Optional[Transform] = None,
-        data_key: str = 'data',
+        data_key: str = "data",
     ):
-        
+
         self.transform: list[transforms.RelationTransform]
         if transform is None:
             self.transform = []
@@ -53,26 +54,25 @@ class Relations(utils.repr._ReprMixin):
             )
         else:
             return self._relations
-    
+
     @relations.setter
     def relations(self, reldata: relationdata.RelationData) -> None:
         self._relations = reldata
 
     def _set_verbosity(self, verbose: bool) -> None:
-        if hasattr(self, 'verbose'):
+        if hasattr(self, "verbose"):
             self.verbose = verbose
             for tf in self.transform:
                 tf._set_verbosity(verbose)
 
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
 
         raise NotImplementedError
 
-    def _transform(self,
-        X: relationdata.RelationData
+    def _transform(
+        self, X: relationdata.RelationData
     ) -> relationdata.RelationData:
 
         for tf in self.transform:
@@ -95,20 +95,18 @@ class Precomputed(Relations):
         containing the (possibly transformed) relations.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         X: TensorLike,
         transform: Optional[Transform] = None,
     ):
 
-        super().__init__(
-            transform = transform
-        )
+        super().__init__(transform=transform)
 
         self._raw_relations = relationdata.relation_factory(X)
 
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
         """Obtain the precomputed relations.
 
@@ -120,14 +118,14 @@ class Precomputed(Relations):
             the (possibly transformed) relations.
         """
 
-        self.relations = self._transform(self._raw_relations)        
-        
+        self.relations = self._transform(self._raw_relations)
+
         return self.relations
 
 
 class PDist(Relations):
     """Full pairwise distances between data points.
-    
+
     Args:
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
@@ -143,17 +141,18 @@ class PDist(Relations):
             containing the (possibly transformed) pairwise distances.
             Available only after calling :meth:`compute_relations`.
     """
- 
-    def __init__(self,
+
+    def __init__(
+        self,
         metric: Optional[Union[Callable, str]] = None,
         transform: Optional[Transform] = None,
-        keep_result = True,
-        data_key: str = 'data',
+        keep_result=True,
+        data_key: str = "data",
         verbose: bool = False,
     ):
 
         if metric is None:
-            metric = 'euclidean'
+            metric = "euclidean"
 
         super().__init__(
             transform=transform,
@@ -164,9 +163,8 @@ class PDist(Relations):
         self.keep_result = keep_result
         self.verbose = verbose
 
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
 
@@ -179,9 +177,7 @@ class PDist(Relations):
         """
 
         if X is None:
-            raise ValueError(
-                "Missing input for non-precomputed relations."
-            )
+            raise ValueError("Missing input for non-precomputed relations.")
 
         X = utils.convert.to_numpy(X)
 
@@ -202,7 +198,7 @@ class PDist(Relations):
 class NeighborBasedPDist(Relations):
     """Approximate, nearest-neighbor-based pairwise distances
     between data points.
-    
+
     Args:
         n_neighbors: Number of nearest neighbors to be considered.
             If not specified, this will be set to 5 percent of the number of
@@ -222,11 +218,12 @@ class NeighborBasedPDist(Relations):
             Available only after calling :meth:`compute_relations`.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         n_neighbors: Optional[int] = None,
         metric: Optional[Union[BinaryTensorFun, str]] = None,
         transform: Optional[Transform] = None,
-        data_key: str = 'data',
+        data_key: str = "data",
         verbose: bool = False,
     ):
 
@@ -242,8 +239,8 @@ class NeighborBasedPDist(Relations):
     def _set_n_neighbors(self, num_pts: int) -> None:
         # get highest parameters of any perplexity- or
         # connectivity-based transforms
-        perp = 0.
-        n_nb = 0.
+        perp = 0.0
+        n_nb = 0.0
         if self.transform is not None:
             for tf in self.transform:
                 if isinstance(tf, transforms.PerplexityBasedRescale):
@@ -254,33 +251,34 @@ class NeighborBasedPDist(Relations):
         # set number of neighbors according to highest
         # perplexity/n_neighbors found, or to reasonable default
         if self.n_neighbors is None:
-            if perp == 0. and n_nb == 0.:
+            if perp == 0.0 and n_nb == 0.0:
                 self.n_neighbors = int(0.05 * num_pts)
             else:
                 self.n_neighbors = int(min(num_pts - 1, max(3 * perp, n_nb)))
         else:
             if self.n_neighbors >= 3 * perp and self.n_neighbors >= n_nb:
                 self.n_neighbors = min(num_pts - 1, self.n_neighbors)
-            elif ((self.n_neighbors < 3 * perp or self.n_neighbors < n_nb) and
-                3 * perp > n_nb):
+            elif (
+                self.n_neighbors < 3 * perp or self.n_neighbors < n_nb
+            ) and 3 * perp > n_nb:
                 warnings.warn(
                     f"Number of neighbors {self.n_neighbors} too small for "
                     f"highest perplexity {perp} found in transforms. Using "
                     f"{3 * perp} neighbors (threefold perplexity) instead."
                 )
                 self.n_neighbors = int(min(num_pts - 1, 3 * perp))
-            elif ((self.n_neighbors < 3 * perp or self.n_neighbors < n_nb) and
-                3 * perp <= n_nb):
+            elif (
+                self.n_neighbors < 3 * perp or self.n_neighbors < n_nb
+            ) and 3 * perp <= n_nb:
                 warnings.warn(
                     f"Number of neighbors {self.n_neighbors} too small for "
                     f"highest 'n_neighbors' {n_nb} found in transforms. "
                     f"Using {n_nb} neighbors instead."
                 )
                 self.n_neighbors = int(min(num_pts - 1, n_nb))
-    
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
 
@@ -293,31 +291,26 @@ class NeighborBasedPDist(Relations):
         """
 
         if X is None:
-            raise ValueError(
-                "Missing input for non-precomputed relations."
-            )
+            raise ValueError("Missing input for non-precomputed relations.")
 
         X = utils.convert.to_numpy(X)
 
         self._set_n_neighbors(X.shape[0])
         assert self.n_neighbors is not None
-        
+
         if self.verbose:
             utils.logging.log("Indexing nearest neighbors.")
 
         if self.metric is None:
-            self.metric = 'euclidean'
-        
-        index = pynndescent.NNDescent(X,
-            n_neighbors=self.n_neighbors + 1,
-            metric=self.metric
+            self.metric = "euclidean"
+
+        index = pynndescent.NNDescent(
+            X, n_neighbors=self.n_neighbors + 1, metric=self.metric
         )
         neighbors, distances = index.neighbor_graph
 
         self.relations = self._transform(
-            relationdata.NeighborRelationTuple(
-                (neighbors, distances)
-            )
+            relationdata.NeighborRelationTuple((neighbors, distances))
         )
 
         return self.relations
@@ -325,7 +318,7 @@ class NeighborBasedPDist(Relations):
 
 class DifferentiablePDist(Relations):
     """Differentiable pairwise distances between data points.
-    
+
     Args:
         p: Parameter that specificies which p-norm to use as
             a distance function. Ignored if ``metric`` is set.
@@ -342,11 +335,12 @@ class DifferentiablePDist(Relations):
             Available only after calling :meth:`compute_relations`.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         p: float = 2,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
-        data_key: str = 'data',
+        data_key: str = "data",
     ):
 
         super().__init__(
@@ -357,12 +351,11 @@ class DifferentiablePDist(Relations):
         self.metric = metric
         self.metric_p = p
 
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
         """Calculates the pairwise distances.
-        
+
         If ``metric`` is not None, a flexible but memory-inefficient
         implementation is used instead of PyTorch's
         :func:`torch.nn.functional.pdist`.
@@ -376,9 +369,7 @@ class DifferentiablePDist(Relations):
         """
 
         if X is None:
-            raise ValueError(
-                "Missing input for non-precomputed relations."
-            )
+            raise ValueError("Missing input for non-precomputed relations.")
 
         if not isinstance(X, torch.Tensor) or not X.requires_grad:
             warnings.warn(
@@ -416,9 +407,10 @@ class DifferentiablePDist(Relations):
 
         return self.relations
 
+
 class DistsFromTo(Relations):
     """Distances between individual pairs of data points.
-    
+
     Args:
         metric: The distance metric to be used.
         transform: A single :class:`paradime.transforms.Transform` or list of
@@ -431,15 +423,16 @@ class DistsFromTo(Relations):
             containing the (possibly transformed) pairwise distances.
             Available only after calling :meth:`compute_relations`.
     """
- 
-    def __init__(self,
+
+    def __init__(
+        self,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
-        data_key: str = 'data',
+        data_key: str = "data",
     ):
 
         if metric is None:
-            metric = (lambda a, b: torch.norm(a - b, dim=1))
+            metric = lambda a, b: torch.norm(a - b, dim=1)
 
         super().__init__(
             transform=transform,
@@ -448,9 +441,8 @@ class DistsFromTo(Relations):
 
         self.metric = metric
 
-    def compute_relations(self,
-        X: Optional[TensorLike] = None,
-        **kwargs
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
     ) -> relationdata.RelationData:
         """Calculates the distances.
 
@@ -464,9 +456,7 @@ class DistsFromTo(Relations):
         """
 
         if X is None:
-            raise ValueError(
-                "Missing input for non-precomputed relations."
-            )
+            raise ValueError("Missing input for non-precomputed relations.")
 
         X = utils.convert.to_torch(X)
 

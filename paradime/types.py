@@ -11,10 +11,7 @@ Rels = Union[
     np.ndarray,
     torch.Tensor,
     scipy.sparse.spmatrix,
-    Tuple[
-        np.ndarray,
-        np.ndarray
-        ]
+    Tuple[np.ndarray, np.ndarray],
 ]
 
 TensorLike = Union[
@@ -22,22 +19,10 @@ TensorLike = Union[
     torch.Tensor,
 ]
 
-BinaryTensorFun = Callable[
-    [torch.Tensor, torch.Tensor],
-    torch.Tensor
-]
+BinaryTensorFun = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
-IndexList = Union[
-    list[int],
-    npt.NDArray[np.integer],
-    torch.Tensor
-]
+IndexList = Union[list[int], npt.NDArray[np.integer], torch.Tensor]
 
 Data = Union[
-    np.ndarray,
-    torch.Tensor,
-    dict[str, Union[
-        np.ndarray,
-        torch.Tensor
-    ]]
+    np.ndarray, torch.Tensor, dict[str, Union[np.ndarray, torch.Tensor]]
 ]
