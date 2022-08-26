@@ -41,34 +41,39 @@ class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
 
         self.data: dict[str, torch.Tensor] = {}
 
-        if isinstance(data, np.ndarray):
-            self.data['data'] = torch.tensor(data)
-        elif isinstance(data, torch.Tensor):
-            self.data['data'] = data
-        elif isinstance(data, dict):
+        if isinstance(data, (np.ndarray, torch.Tensor)):
+            data = {'data': data}
+        elif not isinstance(data, dict):
+            raise ValueError(
+                "Expected numpy array, PyTorch tensor, or dict "
+                f"instead of {type(data)}."
+            )
+        else:
             if 'data' not in data:
                 raise AttributeError(
                     "Dataset expects a dict with a 'data' entry."
                 )
             for k in data:
-                if len(data[k]) != len(data['data']):
+                val = data[k]
+                if len(val) != len(data['data']):
                     raise ValueError(
                         "Dataset dict must have values of equal length."
                     )
-                if isinstance(data[k], np.ndarray):
-                    self.data[k] = torch.tensor(data[k])
-                elif isinstance(data[k], torch.Tensor):
-                    self.data[k] = data[k]  # type: ignore
+                if isinstance(val, np.ndarray):
+                    if np.issubdtype(val.dtype, np.floating):
+                        self.data[k] = torch.tensor(val).float()
+                    else:
+                        self.data[k] = torch.tensor(val)
+                elif isinstance(val, torch.Tensor):
+                    if val.is_floating_point():
+                        self.data[k] = val.float()
+                    else:
+                        self.data[k] = val
                 else:
                     raise ValueError(
                         f"Value for key {k} is not a numpy array "
                         "or PyTorch tensor."
                     )
-        else:
-            raise ValueError(
-                "Expected numpy array, PyTorch tensor, or dict "
-                f"instead of {type(data)}."
-            )
 
         if 'indices' not in self.data:
             self.data['indices'] = torch.arange(len(self))
