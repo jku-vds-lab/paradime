@@ -14,13 +14,13 @@ from paradime.types import TensorLike
 
 
 def to_numpy(X: Union[TensorLike, list[float]]) -> np.ndarray:
-    """Converts a tensor-like object to a NumPy array.
+    """Converts a tensor-like object to a numpy array.
 
     Args:
         X: The tensor-like object to be converted.
 
     Returns:
-        The resulting Numpy array.
+        The resulting numpy array.
     """
     if isinstance(X, torch.Tensor):
         return X.detach().cpu().numpy()
@@ -39,12 +39,20 @@ def to_torch(X: Union[TensorLike, list[float]]) -> torch.Tensor:
         X: The tensor-like object to be converted.
 
     Returns:
-        The resulting PyTorch tensor.
+        The resulting PyTorch tensor. If the input was not a PyTorch tensor
+        already, the output tensor will be of type float32 for float inputs and
+        of type int32 for integer inputs.
     """
     if isinstance(X, torch.Tensor):
         return X
     elif isinstance(X, (np.ndarray, list)):
-        return torch.tensor(X, dtype=torch.float)
+        tensor = torch.tensor(X)
+        if tensor.is_floating_point():
+            return tensor.float()
+        elif not tensor.is_complex():
+            return tensor.int()
+        else:
+            return tensor
     else:
         raise TypeError(f"Input type {type(X)} not supported")
 
