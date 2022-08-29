@@ -17,7 +17,7 @@ from paradime import relationdata
 from paradime import utils
 
 
-class RelationTransform(utils.repr._ReprMixin):
+class RelationTransform(utils._ReprMixin):
     """Base class for relation transforms.
 
     Custom transforms should subclass this class.

@@ -20,7 +20,7 @@ from paradime import utils
 from paradime.types import IndexList, Rels
 
 
-class RelationData(utils.repr._ReprMixin):
+class RelationData(utils._ReprMixin):
     """Base class for storing relations between data points."""
 
     def __init__(self):

@@ -20,7 +20,7 @@ from paradime.types import Data, TensorLike
 from paradime import utils
 
 
-class Dataset(torch.utils.data.Dataset, utils.repr._ReprMixin):
+class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
     """A dataset for dimensionality reduction.
 
     Constructs a PyTorch :class:torch.utils.data.Dataset from the given data
@@ -175,7 +175,7 @@ def _collate_edge_batch(
     return collated_batch
 
 
-class TrainingPhase(utils.repr._ReprMixin):
+class TrainingPhase(utils._ReprMixin):
     """A collection of parameter settings for a single phase in the
     training of a :class:`paradime.dr.ParametricDR` instance.
 
@@ -260,7 +260,7 @@ class TrainingPhase(utils.repr._ReprMixin):
 RelOrRelDict = Union[relations.Relations, dict[str, relations.Relations]]
 
 
-class ParametricDR(utils.repr._ReprMixin):
+class ParametricDR(utils._ReprMixin):
     """A general parametric dimensionality reduction routine.
 
     Args:

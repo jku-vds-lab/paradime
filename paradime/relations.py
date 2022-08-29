@@ -22,7 +22,7 @@ Transform = Union[
 ]
 
 
-class Relations(utils.repr._ReprMixin):
+class Relations(utils._ReprMixin):
     """Base class for calculating relations between data points.
 
     Custom relations should subclass this class.
