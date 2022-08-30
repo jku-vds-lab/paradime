@@ -28,7 +28,6 @@ class Loss(torch.nn.Module):
 
     Attributes:
         name: The name of the loss (used by logging functions).
-        history: The history of loss checkpoints.
     """
 
     _prefix = "loss"
