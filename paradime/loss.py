@@ -152,7 +152,6 @@ class RelationLoss(Loss):
             if sampling == "negative_edge":
                 self._use_from_to = True
                 self.data_key = "from_to_data"
-                self.global_relation_key = "rel"
             else:
                 raise exceptions.UnsupportedConfigurationError(
                     "RelationLoss does not support DistsFromTo with "
@@ -178,7 +177,7 @@ class RelationLoss(Loss):
             loss = self.loss_function(
                 batch[self.global_relation_key].to(device),
                 batch_rel.compute_relations(
-                    embed(batch[data_key].to(device))
+                    embed(batch[self.data_key].to(device))
                 ).data,  # type: ignore
             )
         else:
