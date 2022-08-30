@@ -397,7 +397,7 @@ class CompoundLoss(Loss):
             by its weight.
         """
         histories = torch.tensor([loss.history for loss in self.losses])
-        return self.weights * histories
+        return self.weights[:, None] * histories
 
     def _check_sampling_and_relations(
         self,
