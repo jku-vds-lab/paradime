@@ -7,6 +7,7 @@ color palette retrieval.
 from typing import Any, Optional, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     import matplotlib.colors
+    import matplotlib.axes
 
 import numpy as np
 
@@ -56,6 +57,7 @@ def scatterplot(
     bgcolor: Optional[str] = "#fcfcfc",
     legend: bool = True,
     legend_options: Optional[dict[str, Any]] = None,
+    ax: Optional["matplotlib.axes.Axes"] = None,
     **kwargs
 ) -> None:
     """Creates a scatter plot of points at the given coordinates.
@@ -75,6 +77,8 @@ def scatterplot(
         legend: Whether or not to include the automatically created legend.
         legend_options: A dict of keyword arguments that are passed on to the
             legend method.
+        ax: An axes of the current figure. This argument is useful if the
+            scatterplot should be added to an existing figure.
         kwargs: Any other keyword arguments are passed on to matplotlib's
             `scatter` method.
 
@@ -102,7 +106,13 @@ def scatterplot(
 
         rects = [ rect(colormap[i]) for i in np.unique(indices) ]
 
-    fig = plt.figure(figsize=figsize)
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(1,1,1)
+    else:
+        assert isinstance(ax, plt.Axes)
+        fig = ax.get_figure()
+
     dpi: float = fig.dpi
 
     if hasattr(kwargs, 's'):
@@ -117,8 +127,7 @@ def scatterplot(
             0.02 * min_figsize * dpi
         )
         pointsize = pointwidth**2
-    
-    ax = fig.add_subplot(111)
+
     ax.set_facecolor(bgcolor)
 
     scatter_kwargs = {
