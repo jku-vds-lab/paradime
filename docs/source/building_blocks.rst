@@ -285,7 +285,7 @@ Usually you don't have to worry about this, because paraDime comes with four pre
 
 Finally, you can combine multiple losses using a :class:`~paradime.loss.CompoundLoss`. You simply define a list of losses (and an optional list of weights), and this loss will call and sum up the individual losses.
 
-All losses keep track of their accumulated output. paraDime calls each loss's :class:`~paradime.loss.Loss.checkpoint` method once at the end of each epoch to store the most recent value in the loss's ``history`` list. This allows you to inspect the evolution of all losses after the training (but the total loss will also be logged if you set the ``verbose`` flag to True).
+All losses keep track of their accumulated output. paraDime calls each loss's :class:`~paradime.loss.Loss.checkpoint` method once at the end of each epoch to store the most recent accumulated value in the loss's ``history`` list. This allows you to inspect the evolution of all losses after the training. Cmpound losses also have a :meth:`~paradime.loss.CompoundLoss.detailed_history` method that outputs the history of each loss component multiplied by its weight. During training, the total loss is logged if you set the ``verbose`` flag to True.
 
 Further Information
 -------------------

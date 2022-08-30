@@ -28,6 +28,7 @@ class Loss(torch.nn.Module):
 
     Attributes:
         name: The name of the loss (used by logging functions).
+        history: The history of loss checkpoints.
     """
 
     _prefix = "loss"
@@ -387,6 +388,16 @@ class CompoundLoss(Loss):
         super().checkpoint()
         for l in self.losses:
             l.checkpoint()
+
+    def detailed_history(self) -> torch.Tensor:
+        """Returns a detailed history of the compound loss.
+
+        Returns:
+            A PyTorch tensor with the history of each loss component multiplied
+            by its weight.
+        """
+        histories = torch.tensor([loss.history for loss in self.losses])
+        return self.weights * histories
 
     def _check_sampling_and_relations(
         self,
