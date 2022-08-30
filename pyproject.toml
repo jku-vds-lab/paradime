@@ -20,10 +20,9 @@ dynamic = [
     "version",
 ]
 dependencies = [
-    "numpy>=1.21",
+    "numpy>=1.21, <1.23",
     "scipy>=1.7",
     "pynndescent>=0.5",
-    "torch>=1.11",
     "scikit-learn>=1.1",
 ]
 
