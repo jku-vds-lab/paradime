@@ -6,9 +6,8 @@ Examples
 .. toctree::
     :maxdepth: 2
 
+    examples/mds
     examples/umap
-    examples/linear_tsne
+    examples/hybrid
     examples/supervised
-    examples/custom
-    examples/xai
-    examples/syntax_abuse
+    examples/latent_interventions

@@ -22,7 +22,7 @@ The rest of the 60,000 images can then be easily embedded into the same space wi
    :caption: User Guide
 
    installation
-   getting_started
+   simple_usage
    building_blocks
    examples
 

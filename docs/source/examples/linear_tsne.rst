@@ -1,4 +1,0 @@
-Linear t-SNE
-------------
-
-TODO

@@ -1,4 +1,0 @@
-Supervised DR
--------------
-
-TODO

@@ -1,4 +1,0 @@
-Fully Custom Routine
---------------------
-
-TODO
