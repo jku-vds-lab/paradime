@@ -24,7 +24,3 @@ TypeKeyTuples = list[tuple[Union[Literal["data"], Literal["rel"]], str]]
 BinaryTensorFun = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 IndexList = Union[list[int], npt.NDArray[np.integer], torch.Tensor]
-
-Data = Union[
-    np.ndarray, torch.Tensor, dict[str, Union[np.ndarray, torch.Tensor]]
-]

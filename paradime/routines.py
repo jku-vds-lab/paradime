@@ -16,7 +16,6 @@ from paradime import loss as pdloss
 from paradime import models
 from paradime import relations
 from paradime import transforms
-from paradime.types import Data
 
 
 class ParametricTSNE(dr.ParametricDR):
@@ -90,7 +89,7 @@ class ParametricTSNE(dr.ParametricDR):
         learning_rate: float = 0.01,
         init_learning_rate: Optional[float] = None,
         data_key: str = "data",
-        dataset: Optional[Union[Data, dr.Dataset]] = None,
+        dataset: Optional[Union[dr.Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
     ):
@@ -242,7 +241,7 @@ class ParametricUMAP(dr.ParametricDR):
         learning_rate: float = 0.005,
         init_learning_rate: float = 0.05,
         data_key: str = "data",
-        dataset: Optional[Union[Data, dr.Dataset]] = None,
+        dataset: Optional[Union[dr.Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
     ):

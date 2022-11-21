@@ -16,7 +16,7 @@ from paradime import models
 from paradime import relationdata
 from paradime import relations
 from paradime import loss as pdloss
-from paradime.types import Data, TensorLike, TypeKeyTuples
+from paradime.types import TensorLike, TypeKeyTuples
 from paradime import utils
 
 
@@ -29,38 +29,39 @@ class DerivedDatasetEntry:
 
     Args:
         func: The function to compute the derived data.
-        keys: A list of (type, name) tuples, where the types can be ``'data'``
-            or 'rel', and the names are the respective keys."""
+        type_key_tuples: A list of (type, key) tuples, where the types can be
+            ``'data'`` or ``'rel'``, and the keys are used to access the
+            respective entries.
+    """
 
-    def __init__(self, func: Callable[..., TensorLike], keys: TypeKeyTuples):
+    def __init__(
+        self,
+        func: Callable[..., TensorLike],
+        type_key_tuples: TypeKeyTuples = [("data", "data")],
+    ):
 
         self.func = func
-        self.keys = keys
+        self.requires_relations = False
+        self.type_key_tuples = type_key_tuples
 
-    def compute(
-        self,
-        dataset: "Dataset",
-        global_rels: dict[str, relationdata.RelationData],
-    ) -> dict[str, TensorLike]:
-        """Computes the derived data.
+        types, keys = list(zip(*type_key_tuples))
 
-        Args:
-            dataset: The dataset with the base data.
-            global_rels: The global relations.
-
-        Returns:
-            The derived data as a tensor-like object.
-        """
-
-        selector = {"data": dataset.data, "rel": global_rels}
-
-        args = [selector[i][j] for i, j in self.keys]
-
-        return self.func(*args)
+        for t in types:
+            if t == "data":
+                pass
+            elif t == "rel":
+                self.requires_relations = True
+            else:
+                raise ValueError(
+                    "Expected 'data' or 'rel' as argument type "
+                    f"for derived entry. Found '{t}' instead."
+                )
 
 
 Data = Union[
-    np.ndarray, torch.Tensor, dict[str, Union[np.ndarray, torch.Tensor]]
+    np.ndarray,
+    torch.Tensor,
+    dict[str, Union[np.ndarray, torch.Tensor, DerivedDatasetEntry]],
 ]
 
 
@@ -85,6 +86,7 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
     def __init__(self, data: Data):
 
         self.data: dict[str, torch.Tensor] = {}
+        self._derived_entries: dict[str, DerivedDatasetEntry] = {}
 
         if isinstance(data, (np.ndarray, torch.Tensor)):
             data = {"data": data}
@@ -98,18 +100,21 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
                 raise AttributeError(
                     "Dataset expects a dict with a 'data' entry."
                 )
-        for k in data:
-            val = data[k]
+        for k, val in data.items():
             if not isinstance(val, (np.ndarray, torch.Tensor)):
-                raise ValueError(
-                    f"Value for key {k} is not a numpy array "
-                    "or PyTorch tensor."
-                )
-            if len(val) != len(data["data"]):
+                if isinstance(val, DerivedDatasetEntry):
+                    self._derived_entries[k] = val
+                else:
+                    raise ValueError(
+                        f"Value for key {k} is not a numpy array, PyTorch "
+                        "tensor or derived dataset entry."
+                    )
+            elif len(val) != len(data["data"]):  # type: ignore
                 raise ValueError(
                     "Dataset dict must have values of equal length."
                 )
-            self.data[k] = utils.convert.to_torch(data[k])
+            else:
+                self.data[k] = utils.convert.to_torch(val)
 
         if "indices" not in self.data:
             self.data["indices"] = torch.arange(len(self))
@@ -678,7 +683,9 @@ class ParametricDR(utils._ReprMixin):
 
         self._dataset_registered = True
 
-    def add_to_dataset(self, data: dict[str, TensorLike]) -> None:
+    def add_to_dataset(
+        self, data: dict[str, Union[TensorLike, DerivedDatasetEntry]]
+    ) -> None:
         """Adds additional data entries to an existing dataset.
 
         Useful for injecting additional data entries that can be derived from
@@ -693,13 +700,70 @@ class ParametricDR(utils._ReprMixin):
             raise exceptions.NoDatasetRegisteredError(
                 "Cannot inject additional data before registering a dataset."
             )
-        for k in data:
-            if self.verbose:
-                if hasattr(self.dataset, k):
-                    utils.logging.log(f"Overwriting entry '{k}' in dataset.")
-                else:
-                    utils.logging.log(f"Adding entry '{k}' to dataset.")
-            self.dataset.data[k] = utils.convert.to_torch(data[k])
+        for k, val in data.items():
+            if isinstance(val, DerivedDatasetEntry):
+                if self.verbose:
+                    if k in self.dataset._derived_entries:
+                        utils.logging.log(
+                            f"Overwriting derived entry '{k}' in dataset."
+                        )
+                    else:
+                        utils.logging.log(
+                            f"Adding derived entry '{k}' to dataset."
+                        )
+                self.dataset._derived_entries[k] = val
+            elif isinstance(val, (np.ndarray, torch.Tensor)):
+                if self.verbose:
+                    if k in self.dataset.data:
+                        utils.logging.log(
+                            f"Overwriting entry '{k}' in dataset."
+                        )
+                    else:
+                        utils.logging.log(f"Adding entry '{k}' to dataset.")
+                self.dataset.data[k] = utils.convert.to_torch(val)
+            else:
+                raise ValueError(
+                    f"Value for key {k} is not a numpy array, PyTorch "
+                    "tensor or derived dataset entry."
+                )
+
+    def compute_derived_data(self, keep_definitions: bool = False) -> None:
+        """Computes the derived data entries in the registered dataset.
+
+        After caling this function, the derived entries will be stored as
+        regular entries in the dataset.
+
+        Args:
+            keep_definitions: Whether or not to keep the derived entry
+                specifications after copmutation for potential reuse.
+        """
+
+        if not self._dataset_registered:
+            raise exceptions.NoDatasetRegisteredError(
+                "Cannot inject additional data before registering a dataset."
+            )
+
+        for k, entry in self.dataset._derived_entries.items():
+            if entry.requires_relations and not self._global_relations_computed:
+                raise exceptions.RelationsNotComputedError(
+                    "Cannot compute derived dataset entry "
+                    "before computing global relations."
+                )
+            else:
+                selector: dict[
+                    str,
+                    Union[
+                        dict[str, torch.Tensor],
+                        dict[str, relationdata.RelationData],
+                    ],
+                ] = {
+                    "data": self.dataset.data,
+                    "rel": self.global_relation_data,
+                }
+                args = [selector[i][j] for i, j in entry.type_key_tuples]
+                self.add_to_dataset({k: entry.func(*args)})
+            if not keep_definitions:
+                self.dataset._derived_entries = {}
 
     def compute_global_relations(self, force: bool = False) -> None:
         """Computes the global relations.
