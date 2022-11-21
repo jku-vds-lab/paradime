@@ -6,7 +6,7 @@ This includes the :class:`paradime.dr.ParametricDR` class, as well as
 """
 
 import copy
-from typing import Union, Literal, Optional
+from typing import Callable, Union, Literal, Optional
 
 import numpy as np
 import torch
@@ -16,8 +16,52 @@ from paradime import models
 from paradime import relationdata
 from paradime import relations
 from paradime import loss as pdloss
-from paradime.types import Data, TensorLike
+from paradime.types import Data, TensorLike, TypeKeyTuples
 from paradime import utils
+
+
+class DerivedDatasetEntry:
+    """A derived dataset entry to be computed later.
+
+    Derived dataset entries can be used to set up rules for extending existing
+    datasets later based on functions acting on other dataset entries or
+    global relations.
+
+    Args:
+        func: The function to compute the derived data.
+        keys: A list of (type, name) tuples, where the types can be ``'data'``
+            or 'rel', and the names are the respective keys."""
+
+    def __init__(self, func: Callable[..., TensorLike], keys: TypeKeyTuples):
+
+        self.func = func
+        self.keys = keys
+
+    def compute(
+        self,
+        dataset: "Dataset",
+        global_rels: dict[str, relationdata.RelationData],
+    ) -> dict[str, TensorLike]:
+        """Computes the derived data.
+
+        Args:
+            dataset: The dataset with the base data.
+            global_rels: The global relations.
+
+        Returns:
+            The derived data as a tensor-like object.
+        """
+
+        selector = {"data": dataset.data, "rel": global_rels}
+
+        args = [selector[i][j] for i, j in self.keys]
+
+        return self.func(*args)
+
+
+Data = Union[
+    np.ndarray, torch.Tensor, dict[str, Union[np.ndarray, torch.Tensor]]
+]
 
 
 class Dataset(torch.utils.data.Dataset, utils._ReprMixin):

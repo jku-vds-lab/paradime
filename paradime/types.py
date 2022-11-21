@@ -1,6 +1,6 @@
 """Type definitions for paraDime."""
 
-from typing import Tuple, Union, Callable
+from typing import Callable, Literal, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -18,6 +18,8 @@ TensorLike = Union[
     np.ndarray,
     torch.Tensor,
 ]
+
+TypeKeyTuples = list[tuple[Union[Literal["data"], Literal["rel"]], str]]
 
 BinaryTensorFun = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
