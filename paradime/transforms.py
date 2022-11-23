@@ -23,6 +23,9 @@ class RelationTransform(utils._ReprMixin):
     Custom transforms should subclass this class.
     """
 
+    def __init__(self, **kwargs):
+        pass
+
     def __call__(
         self,
         reldata: relationdata.RelationData,

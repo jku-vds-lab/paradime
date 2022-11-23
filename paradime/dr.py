@@ -10,7 +10,6 @@ from typing import Callable, Literal, Optional, Type, TypeVar, Union
 
 import numpy as np
 import torch
-import yaml
 
 from paradime import exceptions
 from paradime import models
@@ -18,7 +17,7 @@ from paradime import relationdata
 from paradime import relations
 from paradime import transforms
 from paradime import loss as pdloss
-from paradime.types import TensorLike, TypeKeyTuples
+from paradime.types import BinaryTensorFun, TensorLike, TypeKeyTuples
 from paradime import utils
 
 
@@ -260,13 +259,19 @@ class TrainingPhase(utils._ReprMixin):
             should be used for negative edge sampling.
         neg_sampling_rate: The number of negative (i.e., non-neighbor) edges
             to sample for each real neighborhood edge.
-        loss: The loss that is minimized in this training phase.
+        loss_keys: The keys under which to find the losses that should be
+            minimized in this training phase.
+        loss_weights: The weights for the losses. If none are specified, losses
+            will be weighed equally.
         optimizer: The optmizer to use for loss minimization.
         learning_rate: The learning rate used in the optimization.
         report_interval: How often the loss should be reported during
             training, given in terms of epochs. E.g., with a setting of 5,
             the loss will be reported every 5 epochs.
         kwargs: Additional kwargs that are passed on to the optimizer.
+
+    Attributes:
+        loss: The loss constructed from the keys and weights specified above.
     """
 
     def __init__(
@@ -278,7 +283,8 @@ class TrainingPhase(utils._ReprMixin):
         sampling: Literal["standard", "negative_edge"] = "standard",
         edge_rel_key: str = "rel",
         neg_sampling_rate: int = 5,
-        loss: pdloss.Loss = pdloss.Loss(),
+        loss_keys: list[str] = [],
+        loss_weights: Optional[list[float]] = None,
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
         report_interval: int = 5,
@@ -295,7 +301,11 @@ class TrainingPhase(utils._ReprMixin):
         self.edge_rel_key = edge_rel_key
         self.neg_sampling_rate = neg_sampling_rate
 
-        self.loss = loss
+        self.loss_keys = loss_keys
+        if loss_weights is None:
+            self.loss_weights = list(np.ones(len(self.loss_keys)))
+
+        self._loss: Optional[pdloss.Loss] = None
 
         self.optimizer = optimizer
         self.learning_rate = learning_rate
@@ -307,11 +317,34 @@ class TrainingPhase(utils._ReprMixin):
                 f"{self.optimizer} is not a valid PyTorch optimizer."
             )
 
+    @property
+    def loss(self) -> pdloss.Loss:
+        if self._loss is None:
+            raise exceptions.LossNotDeterminedError(
+                """Attempted to access loss before it was determined."""
+            )
+        else:
+            return self._loss
+
+    @loss.setter
+    def loss(self, ls: pdloss.Loss):
+        self._loss = ls
+
+    def _determine_loss(self, loss_dict: dict[str, pdloss.Loss]) -> None:
+        if len(self.loss_keys) == 1:
+            self.loss = copy.deepcopy(loss_dict[self.loss_keys[0]])
+        else:
+            self.loss = pdloss.CompoundLoss(
+                losses=[loss_dict[key] for key in self.loss_keys],
+                weights=self.loss_weights,
+                name=self.name,
+            )
+
 
 RelOrRelDict = Union[relations.Relations, dict[str, relations.Relations]]
 LossOrLossDict = Union[pdloss.Loss, dict[str, pdloss.Loss]]
 
-_T = TypeVar("_T")
+_ParametricDR = TypeVar("_ParametricDR", bound="ParametricDR")
 
 
 class ParametricDR(utils._ReprMixin):
@@ -373,7 +406,7 @@ class ParametricDR(utils._ReprMixin):
         dataset: Optional[Union[Data, Dataset]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
-        losses: LossOrLossDict = pdloss.Loss(),
+        losses: Optional[LossOrLossDict] = None,
         training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
         use_cuda: bool = False,
@@ -434,6 +467,13 @@ class ParametricDR(utils._ReprMixin):
         for k in self.batch_relations:
             self.batch_relations[k]._set_verbosity(self.verbose)
 
+        if isinstance(losses, pdloss.Loss):
+            self.losses = {"loss": losses}
+        elif losses is not None:
+            self.losses = losses
+        else:
+            raise ValueError("No losses specified.")
+
         self.training_defaults = training_defaults
 
         self.training_phases: list[TrainingPhase] = []
@@ -469,41 +509,38 @@ class ParametricDR(utils._ReprMixin):
         return self.embed(X)
 
     @classmethod
-    def from_spec(cls: Type[_T], file_or_spec: Union[str, dict]) -> _T:
+    def from_spec(
+        cls: Type[_ParametricDR], file_or_spec: Union[str, dict]
+    ) -> _ParametricDR:
 
         spec = utils.parsing.validate_spec(file_or_spec)
 
-        dataset_spec = spec.get("dataset")
-        relations_spec = spec.get("relations")
-        losses_spec = spec.get("losses")
-        trainin_phases_spec = spec.get("training phases")
+        dataset_spec = spec.get("dataset", {})
+        dataset: Optional[Dataset]
+        if dataset_spec:
+            dataset = _dataset_from_spec(dataset_spec)
+        else:
+            dataset = None
 
-        dataset = {}
-        for entry in dataset_spec:
-            if "data" in entry:
-                # regular dataset entry
-                dataset["name"] = entry["data"]
-            else:
-                dataset["name"] = DerivedDatasetEntry(
-                    _lookup_func(entry["data func"]), entry["keys"]
-                )
+        relations_spec = spec.get("relations", {})
+        g_rels, b_rels = _relations_from_spec(relations_spec)
 
-        global_relations = {}
-        batch_relations = {}
-        for entry in relations_spec:
-            transforms = []
-            for tf in entry["transforms"]:
-                transforms.append(
-                    _lookup_tf(tf["tftype"]).__init__(**tf["options"])
-                )
-            if entry["level"] == "global":
-                global_relations[entry["name"]] = _lookup_rel(
-                    entry["reltype"]
-                ).__init__(
-                    transform=transforms,
-                    data_key=entry["attr"],
-                    **entry["options"],
-                )
+        losses_spec = spec.get("losses", {})
+        losses = _losses_from_spec(losses_spec)
+
+        tp_spec = spec.get("training phases", {})
+        training_phases = _training_phases_from_spec(tp_spec)
+
+        dr = cls(
+            model=None,
+            dataset=dataset,
+            global_relations=g_rels,
+            batch_relations=b_rels,
+            losses=losses,
+            training_phases=training_phases,
+        )
+
+        return dr
 
     def _call_model_method_by_name(
         self,
@@ -586,7 +623,8 @@ class ParametricDR(utils._ReprMixin):
         sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
-        loss: Optional[pdloss.Loss] = None,
+        loss_keys: Optional[list[str]] = None,
+        loss_weights: Optional[list[float]] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = 5,
@@ -621,8 +659,10 @@ class ParametricDR(utils._ReprMixin):
             self.training_defaults.edge_rel_key = edge_rel_key
         if neg_sampling_rate is not None:
             self.training_defaults.neg_sampling_rate = neg_sampling_rate
-        if loss is not None:
-            self.training_defaults.loss = loss
+        if loss_keys is not None:
+            self.training_defaults.loss_keys = loss_keys
+        if loss_weights is not None:
+            self.training_defaults.loss_weights = loss_weights
         if optimizer is not None:
             self.training_defaults.optimizer = optimizer
         if learning_rate is not None:
@@ -645,7 +685,8 @@ class ParametricDR(utils._ReprMixin):
         sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
-        loss: Optional[pdloss.Loss] = None,
+        loss_keys: Optional[list[str]] = None,
+        loss_weights: Optional[list[float]] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = None,
@@ -688,8 +729,10 @@ class ParametricDR(utils._ReprMixin):
             training_phase.edge_rel_key = edge_rel_key
         if neg_sampling_rate is not None:
             training_phase.neg_sampling_rate = neg_sampling_rate
-        if loss is not None:
-            training_phase.loss = loss
+        if loss_keys is not None:
+            training_phase.loss_keys = loss_keys
+        if loss_weights is not None:
+            training_phase.loss_weights = loss_weights
         if optimizer is not None:
             training_phase.optimizer = optimizer
         if learning_rate is not None:
@@ -698,6 +741,8 @@ class ParametricDR(utils._ReprMixin):
             training_phase.report_interval = report_interval
         if kwargs:
             training_phase.kwargs = {**training_phase.kwargs, **kwargs}
+
+        training_phase._determine_loss(self.losses)
 
         if isinstance(
             training_phase.loss, (pdloss.RelationLoss, pdloss.CompoundLoss)
@@ -982,9 +1027,111 @@ def _lookup_func(name: str) -> Callable:
     pass
 
 
-def _lookup_rel(reltype: str) -> relations.Relations:
+def _dataset_from_spec(spec: list[dict]) -> Dataset:
+    dataset = {}
+    for entry in spec:
+        if "data" in entry:
+            # regular dataset entry
+            dataset["name"] = entry["data"]
+        else:
+            dataset["name"] = DerivedDatasetEntry(
+                _lookup_func(entry["data func"]), entry["keys"]
+            )
+    return Dataset(dataset)
+
+
+def _transforms_from_spec(
+    spec: list[dict],
+) -> list[transforms.RelationTransform]:
+
+    tfs: list[transforms.RelationTransform] = []
+
+    for tfspec in spec:
+        tfs.append(_lookup_tf(tfspec["tftype"])(**tfspec["options"]))
+
+    return tfs
+
+
+def _relations_from_spec(
+    spec: list[dict],
+) -> tuple[dict[str, relations.Relations], dict[str, relations.Relations]]:
+
+    rel_dict: dict[str, type[relations.Relations]] = {
+        "precomp": relations.Precomputed,
+        "pdist": relations.PDist,
+        "neighbor": relations.NeighborBasedPDist,
+        "pdistdiff": relations.DifferentiablePDist,
+        "fromto": relations.DistsFromTo,
+    }
+
+    global_relations: dict[str, relations.Relations] = {}
+    batch_relations: dict[str, relations.Relations] = {}
+
+    for entry in spec:
+        tfs = _transforms_from_spec(entry["transforms"])
+        rel = rel_dict[entry["reltype"]](
+            transform=tfs,
+            **entry["options"],
+        )
+        if entry["level"] == "global":
+            global_relations[entry["name"]] = rel
+        else:
+            batch_relations[entry["name"]] = rel
+
+    return global_relations, batch_relations
+
+
+def _lookup_tf(tftype: str) -> type[transforms.RelationTransform]:
     pass
 
 
-def _lookup_tf(tftype: str) -> transforms.RelationTransform:
+def _lookup_lossfunc(func: str) -> BinaryTensorFun:
+    pass
+
+
+def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
+
+    loss_dict: dict[str, type[pdloss.Loss]] = {
+        "relation": pdloss.RelationLoss,
+        "classification": pdloss.ClassificationLoss,
+        "reconstruction": pdloss.ReconstructionLoss,
+        "position": pdloss.PositionLoss,
+    }
+
+    losses: dict[str, pdloss.Loss] = {}
+
+    for entry in spec:
+        if loss_dict[entry["losstype"]] == pdloss.RelationLoss:
+            losses[entry["name"]] = pdloss.RelationLoss(
+                loss_function=_lookup_lossfunc(entry["func"]),
+                global_relation_key=entry["keys"]["rels"][0],
+                batch_relation_key=entry["keys"]["rels"][1],
+                embedding_method=entry["keys"]["methods"][0],
+            )
+        elif loss_dict[entry["losstype"]] == pdloss.ClassificationLoss:
+            losses[entry["name"]] = pdloss.ClassificationLoss(
+                loss_function=_lookup_lossfunc(entry["func"]),
+                data_key=entry["keys"]["data"][0],
+                label_key=entry["keys"]["data"][1],
+                classification_method=entry["keys"]["methods"][0],
+            )
+        elif loss_dict[entry["losstype"]] == pdloss.ReconstructionLoss:
+            losses[entry["name"]] = pdloss.ReconstructionLoss(
+                loss_function=_lookup_lossfunc(entry["func"]),
+                data_key=entry["keys"]["data"][0],
+                encoding_method=entry["keys"]["methods"][0],
+                decoding_method=entry["keys"]["methods"][1],
+            )
+        else:
+            losses[entry["name"]] = pdloss.PositionLoss(
+                loss_function=_lookup_lossfunc(entry["func"]),
+                data_key=entry["keys"]["data"][0],
+                position_key=entry["keys"]["data"][1],
+                embedding_method=entry["keys"]["methods"][0],
+            )
+
+    return losses
+
+
+def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
     pass

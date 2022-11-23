@@ -50,9 +50,18 @@ schema = {
                     "allowed": ["global", "batch"],
                     "required": True,
                 },
-                "reltype": {"type": "string", "required": True},
+                "reltype": {
+                    "type": "string",
+                    "required": True,
+                    "allowed": [
+                        "precomp",
+                        "pdist",
+                        "neighbor",
+                        "pdistdiff",
+                        "fromto",
+                    ],
+                },
                 "options": {"type": "dict"},
-                "attr": {"type": "string"},
                 "transforms": {
                     "type": "list",
                     "required": False,
@@ -73,7 +82,16 @@ schema = {
             "type": "dict",
             "schema": {
                 "name": {"type": "string", "required": True},
-                "losstype": {"type": "string", "required": True},
+                "losstype": {
+                    "type": "string",
+                    "required": True,
+                    "allowed": [
+                        "relation",
+                        "classification",
+                        "reconstruction",
+                        "position",
+                    ],
+                },
                 "func": {"type": "string"},
                 "keys": {
                     "type": "dict",
