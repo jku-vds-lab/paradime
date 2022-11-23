@@ -283,7 +283,7 @@ class TrainingPhase(utils._ReprMixin):
         sampling: Literal["standard", "negative_edge"] = "standard",
         edge_rel_key: str = "rel",
         neg_sampling_rate: int = 5,
-        loss_keys: list[str] = [],
+        loss_keys: list[str] = ["loss"],
         loss_weights: Optional[list[float]] = None,
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
@@ -301,7 +301,11 @@ class TrainingPhase(utils._ReprMixin):
         self.edge_rel_key = edge_rel_key
         self.neg_sampling_rate = neg_sampling_rate
 
-        self.loss_keys = loss_keys
+        if not loss_keys:
+            raise ValueError("Training phase requires at least one loss key")
+        else:
+            self.loss_keys = loss_keys
+
         if loss_weights is None:
             self.loss_weights = list(np.ones(len(self.loss_keys)))
 
@@ -332,10 +336,19 @@ class TrainingPhase(utils._ReprMixin):
 
     def _determine_loss(self, loss_dict: dict[str, pdloss.Loss]) -> None:
         if len(self.loss_keys) == 1:
-            self.loss = copy.deepcopy(loss_dict[self.loss_keys[0]])
+            lk = self.loss_keys[0]
+            if not lk in loss_dict:
+                raise KeyError(f"Invalid loss key {lk}")
+            self.loss = copy.deepcopy(loss_dict[lk])
         else:
+            losses: list[pdloss.Loss] = []
+            for lk in self.loss_keys:
+                if not lk in loss_dict:
+                    raise KeyError(f"Invalid loss key {lk}")
+                else:
+                    losses.append(copy.deepcopy(loss_dict[lk]))
             self.loss = pdloss.CompoundLoss(
-                losses=[loss_dict[key] for key in self.loss_keys],
+                losses=losses,
                 weights=self.loss_weights,
                 name=self.name,
             )
@@ -376,6 +389,9 @@ class ParametricDR(utils._ReprMixin):
             are calculated during training for each batch and are compared to
             an appropriate subset of the global relations by a
             :class:`paradime.loss.RelationLoss`.
+        losses: A single :class:`paradime.loss.Loss` instance or a dictionary
+            with multiple :class:`paradime.loss.Loss` instances. These losses
+            are accessed by the training phases via the respective keys.
         training_defaults: A :class:`paradime.dr.TrainingPhase` object with
             settings that override the default values of all other training
             phases. This parameter is useful to avoid having to repeatedly
