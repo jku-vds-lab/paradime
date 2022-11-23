@@ -16,3 +16,6 @@ class NoDatasetRegisteredError(Exception):
 
 class UnsupportedConfigurationError(Exception):
     """Combination of parameters and/or objects not supported."""
+
+class SpecificationError(Exception):
+    """Specification not supported."""

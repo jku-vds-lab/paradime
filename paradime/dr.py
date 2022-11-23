@@ -6,15 +6,17 @@ This includes the :class:`paradime.dr.ParametricDR` class, as well as
 """
 
 import copy
-from typing import Callable, Union, Literal, Optional
+from typing import Callable, Literal, Optional, Type, TypeVar, Union
 
 import numpy as np
 import torch
+import yaml
 
 from paradime import exceptions
 from paradime import models
 from paradime import relationdata
 from paradime import relations
+from paradime import transforms
 from paradime import loss as pdloss
 from paradime.types import TensorLike, TypeKeyTuples
 from paradime import utils
@@ -307,6 +309,9 @@ class TrainingPhase(utils._ReprMixin):
 
 
 RelOrRelDict = Union[relations.Relations, dict[str, relations.Relations]]
+LossOrLossDict = Union[pdloss.Loss, dict[str, pdloss.Loss]]
+
+_T = TypeVar("_T")
 
 
 class ParametricDR(utils._ReprMixin):
@@ -368,6 +373,7 @@ class ParametricDR(utils._ReprMixin):
         dataset: Optional[Union[Data, Dataset]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
+        losses: LossOrLossDict = pdloss.Loss(),
         training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
         use_cuda: bool = False,
@@ -461,6 +467,43 @@ class ParametricDR(utils._ReprMixin):
     def __call__(self, X: TensorLike) -> torch.Tensor:
 
         return self.embed(X)
+
+    @classmethod
+    def from_spec(cls: Type[_T], file_or_spec: Union[str, dict]) -> _T:
+
+        spec = utils.parsing.validate_spec(file_or_spec)
+
+        dataset_spec = spec.get("dataset")
+        relations_spec = spec.get("relations")
+        losses_spec = spec.get("losses")
+        trainin_phases_spec = spec.get("training phases")
+
+        dataset = {}
+        for entry in dataset_spec:
+            if "data" in entry:
+                # regular dataset entry
+                dataset["name"] = entry["data"]
+            else:
+                dataset["name"] = DerivedDatasetEntry(
+                    _lookup_func(entry["data func"]), entry["keys"]
+                )
+
+        global_relations = {}
+        batch_relations = {}
+        for entry in relations_spec:
+            transforms = []
+            for tf in entry["transforms"]:
+                transforms.append(
+                    _lookup_tf(tf["tftype"]).__init__(**tf["options"])
+                )
+            if entry["level"] == "global":
+                global_relations[entry["name"]] = _lookup_rel(
+                    entry["reltype"]
+                ).__init__(
+                    transform=transforms,
+                    data_key=entry["attr"],
+                    **entry["options"],
+                )
 
     def _call_model_method_by_name(
         self,
@@ -750,6 +793,8 @@ class ParametricDR(utils._ReprMixin):
                     "before computing global relations."
                 )
             else:
+                if self.verbose:
+                    utils.logging.log(f"Computing derived data entry '{k}'.")
                 selector: dict[
                     str,
                     Union[
@@ -922,6 +967,7 @@ class ParametricDR(utils._ReprMixin):
         routine.
         """
         self._prepare_training()
+        self.compute_derived_data()
         self.compute_global_relations()
 
         self.model.train()
@@ -930,3 +976,15 @@ class ParametricDR(utils._ReprMixin):
             self.run_training_phase(tp)
 
         self.model.eval()
+
+
+def _lookup_func(name: str) -> Callable:
+    pass
+
+
+def _lookup_rel(reltype: str) -> relations.Relations:
+    pass
+
+
+def _lookup_tf(tftype: str) -> transforms.RelationTransform:
+    pass
