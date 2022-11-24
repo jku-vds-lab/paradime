@@ -23,6 +23,7 @@ schema = {
                     "type": "string",
                     "dependencies": "keys",
                     "excludes": "data",
+                    "allowed": ["pca", "spectral"],
                 },
                 "keys": {
                     "type": "list",
@@ -36,6 +37,7 @@ schema = {
                         ],
                     },
                 },
+                "options": {"type": "dict"},
             },
         },
     },
@@ -68,7 +70,18 @@ schema = {
                     "schema": {
                         "type": "dict",
                         "schema": {
-                            "tftype": {"type": "string", "required": True},
+                            "tftype": {
+                                "type": "string",
+                                "required": True,
+                                "allowed": [
+                                    "symmetrize",
+                                    "normalize",
+                                    "normalize rows",
+                                    "perplexity",
+                                    "t-dist",
+                                    "connect",
+                                ],
+                            },
                             "options": {"type": "dict"},
                         },
                     },
@@ -92,7 +105,15 @@ schema = {
                         "position",
                     ],
                 },
-                "func": {"type": "string"},
+                "func": {
+                    "type": "string",
+                    "allowed": [
+                        "mse",
+                        "kl div",
+                        "cross entropy",
+                        "umap cross entropy",
+                    ],
+                },
                 "keys": {
                     "type": "dict",
                     "schema": {

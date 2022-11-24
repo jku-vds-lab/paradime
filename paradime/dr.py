@@ -10,6 +10,8 @@ from typing import Callable, Literal, Optional, Type, TypeVar, Union
 
 import numpy as np
 import torch
+import sklearn.decomposition
+import sklearn.manifold
 
 from paradime import exceptions
 from paradime import models
@@ -39,11 +41,13 @@ class DerivedDatasetEntry:
         self,
         func: Callable[..., TensorLike],
         type_key_tuples: TypeKeyTuples = [("data", "data")],
+        **kwargs,
     ):
 
         self.func = func
         self.requires_relations = False
         self.type_key_tuples = type_key_tuples
+        self.kwargs = kwargs
 
         types, keys = list(zip(*type_key_tuples))
 
@@ -337,14 +341,14 @@ class TrainingPhase(utils._ReprMixin):
     def _determine_loss(self, loss_dict: dict[str, pdloss.Loss]) -> None:
         if len(self.loss_keys) == 1:
             lk = self.loss_keys[0]
-            if not lk in loss_dict:
-                raise KeyError(f"Invalid loss key {lk}")
+            if lk not in loss_dict:
+                raise KeyError(f"Invalid loss key {lk}.")
             self.loss = copy.deepcopy(loss_dict[lk])
         else:
             losses: list[pdloss.Loss] = []
             for lk in self.loss_keys:
                 if not lk in loss_dict:
-                    raise KeyError(f"Invalid loss key {lk}")
+                    raise KeyError(f"Invalid loss key {lk}.")
                 else:
                     losses.append(copy.deepcopy(loss_dict[lk]))
             self.loss = pdloss.CompoundLoss(
@@ -856,6 +860,12 @@ class ParametricDR(utils._ReprMixin):
             else:
                 if self.verbose:
                     utils.logging.log(f"Computing derived data entry '{k}'.")
+
+                options = entry.kwargs
+
+                if "out_dim" not in options:
+                    options["out_dim"] = self.out_dim  # TODO: rethink out_dim
+
                 selector: dict[
                     str,
                     Union[
@@ -866,8 +876,9 @@ class ParametricDR(utils._ReprMixin):
                     "data": self.dataset.data,
                     "rel": self.global_relation_data,
                 }
+
                 args = [selector[i][j] for i, j in entry.type_key_tuples]
-                self.add_to_dataset({k: entry.func(*args)})
+                self.add_to_dataset({k: entry.func(*args, **entry.kwargs)})
             if not keep_definitions:
                 self.dataset._derived_entries = {}
 
@@ -1039,11 +1050,32 @@ class ParametricDR(utils._ReprMixin):
         self.model.eval()
 
 
-def _lookup_func(name: str) -> Callable:
-    pass
+def _pca(x: TensorLike, **kwargs):
+    return torch.tensor(
+        sklearn.decomposition.PCA(n_components=kwargs["out_dim"]).fit_transform(
+            x
+        ),
+        dtype=torch.float,
+    )
+
+
+def _spectral(reldata: relationdata.RelationData, **kwargs):
+    return torch.tensor(
+        sklearn.manifold.SpectralEmbedding(
+            n_components=kwargs["out_dim"],
+            affinity="precomputed",
+        ).fit_transform(reldata.to_square_array().data),
+        dtype=torch.float,
+    )
 
 
 def _dataset_from_spec(spec: list[dict]) -> Dataset:
+
+    df_dict: dict[str, Callable] = {
+        "pca": _pca,
+        "spectral": _spectral,
+    }
+
     dataset = {}
     for entry in spec:
         if "data" in entry:
@@ -1051,7 +1083,9 @@ def _dataset_from_spec(spec: list[dict]) -> Dataset:
             dataset["name"] = entry["data"]
         else:
             dataset["name"] = DerivedDatasetEntry(
-                _lookup_func(entry["data func"]), entry["keys"]
+                df_dict[entry["data func"]],
+                entry["keys"],
+                **entry["options"],
             )
     return Dataset(dataset)
 
@@ -1060,10 +1094,19 @@ def _transforms_from_spec(
     spec: list[dict],
 ) -> list[transforms.RelationTransform]:
 
+    tf_dict: dict[str, type[transforms.RelationTransform]] = {
+        "symmetrize": transforms.Symmetrize,
+        "normalize": transforms.Normalize,
+        "normalize rows": transforms.NormalizeRows,
+        "perplexity": transforms.PerplexityBasedRescale,
+        "t-dist": transforms.StudentTTransform,
+        "connect": transforms.ConnectivityBasedRescale,
+    }
+
     tfs: list[transforms.RelationTransform] = []
 
     for tfspec in spec:
-        tfs.append(_lookup_tf(tfspec["tftype"])(**tfspec["options"]))
+        tfs.append(tf_dict[tfspec["tftype"]](**tfspec["options"]))
 
     return tfs
 
@@ -1097,14 +1140,6 @@ def _relations_from_spec(
     return global_relations, batch_relations
 
 
-def _lookup_tf(tftype: str) -> type[transforms.RelationTransform]:
-    pass
-
-
-def _lookup_lossfunc(func: str) -> BinaryTensorFun:
-    pass
-
-
 def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
 
     loss_dict: dict[str, type[pdloss.Loss]] = {
@@ -1114,33 +1149,40 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
         "position": pdloss.PositionLoss,
     }
 
+    loss_func_dict: dict[str, Callable] = {
+        "mse": torch.nn.MSELoss(),
+        "kl div": pdloss.kullback_leibler_div,
+        "cross entropy": torch.nn.CrossEntropyLoss(),
+        "umap cross entropy": pdloss.cross_entropy_loss,
+    }
+
     losses: dict[str, pdloss.Loss] = {}
 
     for entry in spec:
         if loss_dict[entry["losstype"]] == pdloss.RelationLoss:
             losses[entry["name"]] = pdloss.RelationLoss(
-                loss_function=_lookup_lossfunc(entry["func"]),
+                loss_function=loss_func_dict[entry["func"]],
                 global_relation_key=entry["keys"]["rels"][0],
                 batch_relation_key=entry["keys"]["rels"][1],
                 embedding_method=entry["keys"]["methods"][0],
             )
         elif loss_dict[entry["losstype"]] == pdloss.ClassificationLoss:
             losses[entry["name"]] = pdloss.ClassificationLoss(
-                loss_function=_lookup_lossfunc(entry["func"]),
+                loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 label_key=entry["keys"]["data"][1],
                 classification_method=entry["keys"]["methods"][0],
             )
         elif loss_dict[entry["losstype"]] == pdloss.ReconstructionLoss:
             losses[entry["name"]] = pdloss.ReconstructionLoss(
-                loss_function=_lookup_lossfunc(entry["func"]),
+                loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 encoding_method=entry["keys"]["methods"][0],
                 decoding_method=entry["keys"]["methods"][1],
             )
         else:
             losses[entry["name"]] = pdloss.PositionLoss(
-                loss_function=_lookup_lossfunc(entry["func"]),
+                loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 position_key=entry["keys"]["data"][1],
                 embedding_method=entry["keys"]["methods"][0],
