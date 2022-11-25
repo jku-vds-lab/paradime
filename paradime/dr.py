@@ -864,7 +864,7 @@ class ParametricDR(utils._ReprMixin):
                 options = entry.kwargs
 
                 if "out_dim" not in options:
-                    options["out_dim"] = self.out_dim  # TODO: rethink out_dim
+                    options["out_dim"] = 2
 
                 selector: dict[
                     str,
@@ -1192,4 +1192,23 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
 
 
 def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
-    pass
+
+    training_phases: list[TrainingPhase] = []
+
+    for entry in spec:
+        tp = TrainingPhase(
+            epochs=entry["epochs"],
+            sampling=(
+                "negative_edge"
+                if entry["sampling"]["samplingtype"] == "edge"
+                else "standard"
+            ),
+            loss_keys=entry["loss"]["components"],
+            loss_weights=entry["loss"]["weights"],
+            optimizer=entry["optimizer"]["optimtype"],
+            **entry["sampling"]["options"],
+            **entry["optimizer"]["options"],
+        )
+        training_phases.append(tp)
+
+    return training_phases
