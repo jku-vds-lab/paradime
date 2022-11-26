@@ -31,7 +31,7 @@ class Relations(utils._ReprMixin):
     def __init__(
         self,
         transform: Optional[Transform] = None,
-        data_key: str = "data",
+        data_key: str = "main",
     ):
 
         self.transform: list[transforms.RelationTransform]
@@ -147,7 +147,7 @@ class PDist(Relations):
         metric: Optional[Union[Callable, str]] = None,
         transform: Optional[Transform] = None,
         keep_result=True,
-        data_key: str = "data",
+        data_key: str = "main",
         verbose: bool = False,
     ):
 
@@ -223,7 +223,7 @@ class NeighborBasedPDist(Relations):
         n_neighbors: Optional[int] = None,
         metric: Optional[Union[BinaryTensorFun, str]] = None,
         transform: Optional[Transform] = None,
-        data_key: str = "data",
+        data_key: str = "main",
         verbose: bool = False,
     ):
 
@@ -340,7 +340,7 @@ class DifferentiablePDist(Relations):
         p: float = 2,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
-        data_key: str = "data",
+        data_key: str = "main",
     ):
 
         super().__init__(
@@ -428,7 +428,7 @@ class DistsFromTo(Relations):
         self,
         metric: Optional[BinaryTensorFun] = None,
         transform: Optional[Transform] = None,
-        data_key: str = "data",
+        data_key: str = "main",
     ):
 
         if metric is None:

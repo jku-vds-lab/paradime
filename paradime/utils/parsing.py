@@ -12,23 +12,20 @@ from ruamel.yaml import YAML
 from paradime.exceptions import SpecificationError
 
 schema = {
-    "dataset": {
+    "derived data": {
         "type": "list",
         "schema": {
             "type": "dict",
             "schema": {
                 "name": {"type": "string", "required": True},
-                "data": {"type": "list", "excludes": ["data func", "keys"]},
                 "data func": {
                     "type": "string",
-                    "dependencies": "keys",
-                    "excludes": "data",
+                    "required": True,
                     "allowed": ["pca", "spectral"],
                 },
                 "keys": {
                     "type": "list",
-                    "dependencies": "data func",
-                    "excludes": "data",
+                    "required": True,
                     "schema": {
                         "type": "list",
                         "items": [
@@ -147,15 +144,23 @@ schema = {
                 "optimizer": {
                     "type": "dict",
                     "schema": {
-                        "optimtype": {"type": "string"},
-                        "options": {"type": "dict"},
+                        "optimtype": {
+                            "type": "string",
+                            "required": True,
+                            "allowed": ["adam", "sgd"],
+                        },
+                        "options": {
+                            "type": "dict",
+                        },
                     },
                 },
                 "loss": {
                     "type": "dict",
+                    "required": True,
                     "schema": {
                         "components": {
                             "type": "list",
+                            "required": True,
                             "schema": {"type": "string"},
                         },
                         "weights": {
@@ -199,7 +204,7 @@ def validate_spec(file_or_spec: Union[str, dict]) -> dict[str, Any]:
             "Expected specification dict or path to YAML/JSON file."
         )
 
-    if spec_validator.validate():
+    if spec_validator.validate(spec):
         return spec
     else:
         raise SpecificationError(f"{spec_validator.errors}")

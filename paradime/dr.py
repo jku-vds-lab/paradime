@@ -6,7 +6,7 @@ This includes the :class:`paradime.dr.ParametricDR` class, as well as
 """
 
 import copy
-from typing import Callable, Literal, Optional, Type, TypeVar, Union
+from typing import Callable, Literal, Mapping, Optional, Type, TypeVar, Union
 
 import numpy as np
 import torch
@@ -40,7 +40,7 @@ class DerivedDatasetEntry:
     def __init__(
         self,
         func: Callable[..., TensorLike],
-        type_key_tuples: TypeKeyTuples = [("data", "data")],
+        type_key_tuples: TypeKeyTuples = [("data", "main")],
         **kwargs,
     ):
 
@@ -94,17 +94,30 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
         self._derived_entries: dict[str, DerivedDatasetEntry] = {}
 
         if isinstance(data, (np.ndarray, torch.Tensor)):
-            data = {"data": data}
+            data = {"main": data}
         elif not isinstance(data, dict):
             raise ValueError(
                 "Expected numpy array, PyTorch tensor, or dict "
                 f"instead of {type(data)}."
             )
+        # else:
+        #     if "data" not in data:
+        #         raise AttributeError(
+        #             "Dataset expects a dict with a 'data' entry."
+        #         )
+
+        num_items: Optional[int] = None
+        for k, val in data.items():
+            if not isinstance(val, DerivedDatasetEntry):
+                num_items = len(val)
+                break
+        if num_items is not None:
+            self.num_items = num_items
         else:
-            if "data" not in data:
-                raise AttributeError(
-                    "Dataset expects a dict with a 'data' entry."
-                )
+            raise ValueError(
+                "Dataset must have at least one non-derived entry."
+            )
+
         for k, val in data.items():
             if not isinstance(val, (np.ndarray, torch.Tensor)):
                 if isinstance(val, DerivedDatasetEntry):
@@ -114,7 +127,7 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
                         f"Value for key {k} is not a numpy array, PyTorch "
                         "tensor or derived dataset entry."
                     )
-            elif len(val) != len(data["data"]):  # type: ignore
+            elif len(val) != self.num_items:  # type: ignore
                 raise ValueError(
                     "Dataset dict must have values of equal length."
                 )
@@ -125,7 +138,7 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
             self.data["indices"] = torch.arange(len(self))
 
     def __len__(self) -> int:
-        return len(self.data["data"])
+        return self.num_items
 
     def __getitem__(self, index) -> dict[str, torch.Tensor]:
         out = {}
@@ -159,12 +172,19 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
         dataset: Dataset,
         relations: relationdata.RelationData,
         neg_sampling_rate: int = 5,
+        data_key: str = "main",
     ):
 
         self.dataset = dataset
         self.p_ij = relations.to_sparse_array().data.tocoo()
         self.weights = self.p_ij.data
         self.neg_sampling_rate = neg_sampling_rate
+        self.data_key = data_key
+
+        if self.data_key not in self.dataset.data:
+            raise KeyError(
+                f"Dataset does not have an attribute '{self.data_key}'."
+            )
 
     def __len__(self) -> int:
         return len(self.dataset)
@@ -196,7 +216,10 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
         edge_data = {"row": rows, "col": cols, "rel": p_simpl}
 
         edge_data["from_to_data"] = torch.stack(
-            (self.dataset.data["data"][rows], self.dataset.data["data"][cols])
+            (
+                self.dataset.data[self.data_key][rows],
+                self.dataset.data[self.data_key][cols],
+            )
         )
 
         remaining_data = torch.utils.data.default_collate(
@@ -446,13 +469,11 @@ class ParametricDR(utils._ReprMixin):
             if in_dim is None and not self._dataset_registered:
                 raise ValueError(
                     "A value for 'in_dim' must be given if no model or "
-                    "dataset is specified."
+                    "dataset are specified."
                 )
             elif in_dim is None and isinstance(self.dataset, Dataset):
-                try:
-                    in_dim = self.dataset.data["data"].shape[-1]
-                except KeyError:
-                    pass
+                if "main" in self.dataset.data:
+                    in_dim = self.dataset.data["main"].shape[-1]
             if isinstance(in_dim, int):
                 self.model = models.FullyConnectedEmbeddingModel(
                     in_dim,
@@ -460,8 +481,9 @@ class ParametricDR(utils._ReprMixin):
                     hidden_dims,
                 )
             else:
-                raise KeyError(
-                    "Failed to infer data dimensionality from dataset."
+                raise ValueError(
+                    "Failed to infer data dimensionality from dataset. "
+                    "Please specify 'in_dim' explicitly."
                 )
         else:
             self.model = model
@@ -530,17 +552,16 @@ class ParametricDR(utils._ReprMixin):
 
     @classmethod
     def from_spec(
-        cls: Type[_ParametricDR], file_or_spec: Union[str, dict]
+        cls: Type[_ParametricDR],
+        file_or_spec: Union[str, dict],
+        dataset: Union[Data, Dataset],
+        model: Optional[models.Model] = None,
     ) -> _ParametricDR:
 
         spec = utils.parsing.validate_spec(file_or_spec)
 
-        dataset_spec = spec.get("dataset", {})
-        dataset: Optional[Dataset]
-        if dataset_spec:
-            dataset = _dataset_from_spec(dataset_spec)
-        else:
-            dataset = None
+        derived_data_spec = spec.get("derived data", {})
+        derived_entries = _derived_entries_from_spec(derived_data_spec)
 
         relations_spec = spec.get("relations", {})
         g_rels, b_rels = _relations_from_spec(relations_spec)
@@ -552,13 +573,15 @@ class ParametricDR(utils._ReprMixin):
         training_phases = _training_phases_from_spec(tp_spec)
 
         dr = cls(
-            model=None,
+            model=model,
             dataset=dataset,
             global_relations=g_rels,
             batch_relations=b_rels,
             losses=losses,
             training_phases=training_phases,
         )
+
+        dr.add_to_dataset(derived_entries)
 
         return dr
 
@@ -792,7 +815,7 @@ class ParametricDR(utils._ReprMixin):
         self._dataset_registered = True
 
     def add_to_dataset(
-        self, data: dict[str, Union[TensorLike, DerivedDatasetEntry]]
+        self, data: Mapping[str, Union[TensorLike, DerivedDatasetEntry]]
     ) -> None:
         """Adds additional data entries to an existing dataset.
 
@@ -1069,25 +1092,23 @@ def _spectral(reldata: relationdata.RelationData, **kwargs):
     )
 
 
-def _dataset_from_spec(spec: list[dict]) -> Dataset:
+def _derived_entries_from_spec(
+    spec: list[dict],
+) -> dict[str, DerivedDatasetEntry]:
 
     df_dict: dict[str, Callable] = {
         "pca": _pca,
         "spectral": _spectral,
     }
 
-    dataset = {}
+    derived_entries = {}
     for entry in spec:
-        if "data" in entry:
-            # regular dataset entry
-            dataset["name"] = entry["data"]
-        else:
-            dataset["name"] = DerivedDatasetEntry(
-                df_dict[entry["data func"]],
-                entry["keys"],
-                **entry["options"],
-            )
-    return Dataset(dataset)
+        derived_entries[entry["name"]] = DerivedDatasetEntry(
+            df_dict[entry["data func"]],
+            entry["keys"],
+            **entry.get("options", {}),
+        )
+    return derived_entries
 
 
 def _transforms_from_spec(
@@ -1106,7 +1127,7 @@ def _transforms_from_spec(
     tfs: list[transforms.RelationTransform] = []
 
     for tfspec in spec:
-        tfs.append(tf_dict[tfspec["tftype"]](**tfspec["options"]))
+        tfs.append(tf_dict[tfspec["tftype"]](**tfspec.get("options", {})))
 
     return tfs
 
@@ -1130,7 +1151,7 @@ def _relations_from_spec(
         tfs = _transforms_from_spec(entry["transforms"])
         rel = rel_dict[entry["reltype"]](
             transform=tfs,
-            **entry["options"],
+            **entry.get("options", {}),
         )
         if entry["level"] == "global":
             global_relations[entry["name"]] = rel
@@ -1160,32 +1181,36 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
 
     for entry in spec:
         if loss_dict[entry["losstype"]] == pdloss.RelationLoss:
+            methods = entry["keys"].get("methods", ["embed"])
             losses[entry["name"]] = pdloss.RelationLoss(
                 loss_function=loss_func_dict[entry["func"]],
                 global_relation_key=entry["keys"]["rels"][0],
                 batch_relation_key=entry["keys"]["rels"][1],
-                embedding_method=entry["keys"]["methods"][0],
+                embedding_method=methods[0],
             )
         elif loss_dict[entry["losstype"]] == pdloss.ClassificationLoss:
+            methods = entry["keys"].get("methods", ["classify"])
             losses[entry["name"]] = pdloss.ClassificationLoss(
                 loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 label_key=entry["keys"]["data"][1],
-                classification_method=entry["keys"]["methods"][0],
+                classification_method=methods[0],
             )
         elif loss_dict[entry["losstype"]] == pdloss.ReconstructionLoss:
+            methods = entry["keys"].get("methods", ["encode", "decode"])
             losses[entry["name"]] = pdloss.ReconstructionLoss(
                 loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
-                encoding_method=entry["keys"]["methods"][0],
-                decoding_method=entry["keys"]["methods"][1],
+                encoding_method=methods[0],
+                decoding_method=methods[1],
             )
         else:
+            methods = entry["keys"].get("methods", ["embed"])
             losses[entry["name"]] = pdloss.PositionLoss(
                 loss_function=loss_func_dict[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 position_key=entry["keys"]["data"][1],
-                embedding_method=entry["keys"]["methods"][0],
+                embedding_method=methods[0],
             )
 
     return losses
@@ -1196,18 +1221,26 @@ def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
     training_phases: list[TrainingPhase] = []
 
     for entry in spec:
+        if "optimizer" in entry:
+            optimizer = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[
+                entry["optimizer"]["optimtype"]
+            ]
+            optim_options = entry["optimizer"].get("options", {})
+        else:
+            optimizer = torch.optim.Adam
+            optim_options = {}
         tp = TrainingPhase(
-            epochs=entry["epochs"],
+            epochs=entry.get("epochs", 5),
             sampling=(
                 "negative_edge"
                 if entry["sampling"]["samplingtype"] == "edge"
                 else "standard"
             ),
             loss_keys=entry["loss"]["components"],
-            loss_weights=entry["loss"]["weights"],
-            optimizer=entry["optimizer"]["optimtype"],
-            **entry["sampling"]["options"],
-            **entry["optimizer"]["options"],
+            loss_weights=entry["loss"].get("weights"),
+            optimizer=optimizer,
+            **entry["sampling"].get("options", {}),
+            **optim_options,
         )
         training_phases.append(tp)
 
