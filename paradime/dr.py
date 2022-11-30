@@ -1127,7 +1127,7 @@ def _transforms_from_spec(
     tfs: list[transforms.RelationTransform] = []
 
     for tfspec in spec:
-        tfs.append(tf_dict[tfspec["tftype"]](**tfspec.get("options", {})))
+        tfs.append(tf_dict[tfspec["type"]](**tfspec.get("options", {})))
 
     return tfs
 
@@ -1148,10 +1148,15 @@ def _relations_from_spec(
     batch_relations: dict[str, relations.Relations] = {}
 
     for entry in spec:
+        data_key = entry.get("attr", "main")
+        options = entry.get("options", {})
+        rel_type = rel_dict[entry["type"]]
+        if rel_type is not relations.Precomputed:
+            options["data_key"] = data_key
         tfs = _transforms_from_spec(entry["transforms"])
-        rel = rel_dict[entry["reltype"]](
+        rel = rel_type(
             transform=tfs,
-            **entry.get("options", {}),
+            **options,
         )
         if entry["level"] == "global":
             global_relations[entry["name"]] = rel
@@ -1180,7 +1185,7 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
     losses: dict[str, pdloss.Loss] = {}
 
     for entry in spec:
-        if loss_dict[entry["losstype"]] == pdloss.RelationLoss:
+        if loss_dict[entry["type"]] == pdloss.RelationLoss:
             methods = entry["keys"].get("methods", ["embed"])
             losses[entry["name"]] = pdloss.RelationLoss(
                 loss_function=loss_func_dict[entry["func"]],
@@ -1188,7 +1193,7 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
                 batch_relation_key=entry["keys"]["rels"][1],
                 embedding_method=methods[0],
             )
-        elif loss_dict[entry["losstype"]] == pdloss.ClassificationLoss:
+        elif loss_dict[entry["type"]] == pdloss.ClassificationLoss:
             methods = entry["keys"].get("methods", ["classify"])
             losses[entry["name"]] = pdloss.ClassificationLoss(
                 loss_function=loss_func_dict[entry["func"]],
@@ -1196,7 +1201,7 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
                 label_key=entry["keys"]["data"][1],
                 classification_method=methods[0],
             )
-        elif loss_dict[entry["losstype"]] == pdloss.ReconstructionLoss:
+        elif loss_dict[entry["type"]] == pdloss.ReconstructionLoss:
             methods = entry["keys"].get("methods", ["encode", "decode"])
             losses[entry["name"]] = pdloss.ReconstructionLoss(
                 loss_function=loss_func_dict[entry["func"]],
@@ -1223,7 +1228,7 @@ def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
     for entry in spec:
         if "optimizer" in entry:
             optimizer = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[
-                entry["optimizer"]["optimtype"]
+                entry["optimizer"]["type"]
             ]
             optim_options = entry["optimizer"].get("options", {})
         else:
@@ -1233,7 +1238,7 @@ def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
             epochs=entry.get("epochs", 5),
             sampling=(
                 "negative_edge"
-                if entry["sampling"]["samplingtype"] == "edge"
+                if entry["sampling"]["type"] == "edge"
                 else "standard"
             ),
             loss_keys=entry["loss"]["components"],

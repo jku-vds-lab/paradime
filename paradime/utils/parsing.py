@@ -29,7 +29,7 @@ schema = {
                     "schema": {
                         "type": "list",
                         "items": [
-                            {"type": "string", "allowed": ["data", "rel"]},
+                            {"type": "string", "allowed": ["data", "rels"]},
                             {"type": "string"},
                         ],
                     },
@@ -49,7 +49,7 @@ schema = {
                     "allowed": ["global", "batch"],
                     "required": True,
                 },
-                "reltype": {
+                "type": {
                     "type": "string",
                     "required": True,
                     "allowed": [
@@ -60,6 +60,9 @@ schema = {
                         "fromto",
                     ],
                 },
+                "attr": {
+                    "type": "string",
+                },
                 "options": {"type": "dict"},
                 "transforms": {
                     "type": "list",
@@ -67,7 +70,7 @@ schema = {
                     "schema": {
                         "type": "dict",
                         "schema": {
-                            "tftype": {
+                            "type": {
                                 "type": "string",
                                 "required": True,
                                 "allowed": [
@@ -92,7 +95,7 @@ schema = {
             "type": "dict",
             "schema": {
                 "name": {"type": "string", "required": True},
-                "losstype": {
+                "type": {
                     "type": "string",
                     "required": True,
                     "allowed": [
@@ -134,7 +137,7 @@ schema = {
                 "sampling": {
                     "type": "dict",
                     "schema": {
-                        "samplingtype": {
+                        "type": {
                             "type": "string",
                             "allowed": ["item", "edge"],
                         },
@@ -144,7 +147,7 @@ schema = {
                 "optimizer": {
                     "type": "dict",
                     "schema": {
-                        "optimtype": {
+                        "type": {
                             "type": "string",
                             "required": True,
                             "allowed": ["adam", "sgd"],
