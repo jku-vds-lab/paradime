@@ -19,11 +19,11 @@ from paradime import relationdata
 from paradime import relations
 from paradime import transforms
 from paradime import loss as pdloss
-from paradime.types import BinaryTensorFun, TensorLike, TypeKeyTuples
+from paradime.types import TensorLike, TypeKeyTuples
 from paradime import utils
 
 
-class DerivedDatasetEntry:
+class DerivedData:
     """A derived dataset entry to be computed later.
 
     Derived dataset entries can be used to set up rules for extending existing
@@ -33,7 +33,7 @@ class DerivedDatasetEntry:
     Args:
         func: The function to compute the derived data.
         type_key_tuples: A list of (type, key) tuples, where the types can be
-            ``'data'`` or ``'rel'``, and the keys are used to access the
+            ``'data'`` or ``'rels'``, and the keys are used to access the
             respective entries.
     """
 
@@ -54,11 +54,11 @@ class DerivedDatasetEntry:
         for t in types:
             if t == "data":
                 pass
-            elif t == "rel":
+            elif t == "rels":
                 self.requires_relations = True
             else:
                 raise ValueError(
-                    "Expected 'data' or 'rel' as argument type "
+                    "Expected 'data' or 'rels' as argument type "
                     f"for derived entry. Found '{t}' instead."
                 )
 
@@ -66,7 +66,7 @@ class DerivedDatasetEntry:
 Data = Union[
     np.ndarray,
     torch.Tensor,
-    dict[str, Union[np.ndarray, torch.Tensor, DerivedDatasetEntry]],
+    Mapping[str, Union[np.ndarray, torch.Tensor]],
 ]
 
 
@@ -91,7 +91,6 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
     def __init__(self, data: Data):
 
         self.data: dict[str, torch.Tensor] = {}
-        self._derived_entries: dict[str, DerivedDatasetEntry] = {}
 
         if isinstance(data, (np.ndarray, torch.Tensor)):
             data = {"main": data}
@@ -106,28 +105,16 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
         #             "Dataset expects a dict with a 'data' entry."
         #         )
 
-        num_items: Optional[int] = None
-        for k, val in data.items():
-            if not isinstance(val, DerivedDatasetEntry):
-                num_items = len(val)
-                break
-        if num_items is not None:
-            self.num_items = num_items
-        else:
-            raise ValueError(
-                "Dataset must have at least one non-derived entry."
-            )
-
-        for k, val in data.items():
+        for i, (k, val) in enumerate(data.items()):
             if not isinstance(val, (np.ndarray, torch.Tensor)):
-                if isinstance(val, DerivedDatasetEntry):
-                    self._derived_entries[k] = val
-                else:
-                    raise ValueError(
-                        f"Value for key {k} is not a numpy array, PyTorch "
-                        "tensor or derived dataset entry."
-                    )
-            elif len(val) != self.num_items:  # type: ignore
+                raise ValueError(
+                    f"Value for key {k} is not a numpy array or "
+                    "PyTorch tensor."
+                )
+            elif i == 0:
+                self.num_items = len(val)
+                self.data[k] = utils.convert.to_torch(val)
+            elif len(val) != self.num_items:
                 raise ValueError(
                     "Dataset dict must have values of equal length."
                 )
@@ -401,11 +388,10 @@ class ParametricDR(utils._ReprMixin):
             the embedding).
         hidden_dims: Dimensions of hidden layers for the default fully
             connected model that is created if no model is specified.
-        dataset: The dataset on which to perform the training, passed either
-            as a single numpy array or PyTorch tensor, a dictionary containing
-            multiple arrays and/or tensors, or a :class:`paradime.dr.Dataset`
-            Datasets can be registerd after instantiation using the
-            :meth:`register_dataset` class method.
+        derived_data: A dictionary of :class:`paradime.dr.DerivedData`
+            instances. These entries are computed before training, either
+            before or after the global relations, depending on the options in
+            the entries.
         global_relations: A single :class:`paradime.relations.Relations`
             instance or a dictionary with multiple
             :class:`paradime.relations.Relations` instances. Global relations
@@ -446,7 +432,7 @@ class ParametricDR(utils._ReprMixin):
         in_dim: Optional[int] = None,
         out_dim: int = 2,
         hidden_dims: list[int] = [100, 50],
-        dataset: Optional[Union[Data, Dataset]] = None,
+        derived_data: Optional[dict[str, DerivedData]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
         losses: Optional[LossOrLossDict] = None,
@@ -460,20 +446,15 @@ class ParametricDR(utils._ReprMixin):
 
         self._dataset: Optional[Dataset] = None
         self._dataset_registered = False
-        if dataset is not None:
-            self.register_dataset(dataset)
+
+        if not derived_data:
+            self.derived_data: dict[str, DerivedData] = {}
+        else:
+            self.derived_data = derived_data
 
         self.model: torch.nn.Module
 
         if model is None:
-            if in_dim is None and not self._dataset_registered:
-                raise ValueError(
-                    "A value for 'in_dim' must be given if no model or "
-                    "dataset are specified."
-                )
-            elif in_dim is None and isinstance(self.dataset, Dataset):
-                if "main" in self.dataset.data:
-                    in_dim = self.dataset.data["main"].shape[-1]
             if isinstance(in_dim, int):
                 self.model = models.FullyConnectedEmbeddingModel(
                     in_dim,
@@ -482,8 +463,8 @@ class ParametricDR(utils._ReprMixin):
                 )
             else:
                 raise ValueError(
-                    "Failed to infer data dimensionality from dataset. "
-                    "Please specify 'in_dim' explicitly."
+                    "A value for 'in_dim' must be given if no model "
+                    "is specified."
                 )
         else:
             self.model = model
@@ -554,7 +535,6 @@ class ParametricDR(utils._ReprMixin):
     def from_spec(
         cls: Type[_ParametricDR],
         file_or_spec: Union[str, dict],
-        dataset: Union[Data, Dataset],
         model: Optional[models.Model] = None,
     ) -> _ParametricDR:
 
@@ -574,14 +554,12 @@ class ParametricDR(utils._ReprMixin):
 
         dr = cls(
             model=model,
-            dataset=dataset,
+            derived_data=derived_entries,
             global_relations=g_rels,
             batch_relations=b_rels,
             losses=losses,
             training_phases=training_phases,
         )
-
-        dr.add_to_dataset(derived_entries)
 
         return dr
 
@@ -796,54 +774,51 @@ class ParametricDR(utils._ReprMixin):
 
         self.training_phases.append(training_phase)
 
-    def register_dataset(self, dataset: Union[Data, Dataset]) -> None:
+    def _register_dataset(self, dataset: Data) -> None:
         """Registers a dataset for a parametric dimensionality reduction
         routine.
 
         Args:
             dataset: The data, passed either as a single numpy array or PyTorch
-                tensor, a dictionary containing multiple arrays and/or
-                tensors, or a :class:`paradime.dr.Dataset`.
+                tensor, or a dictionary containing multiple arrays and/or
+                tensors.
         """
         if self.verbose:
-            utils.logging.log("Registering dataset.")
-        if isinstance(dataset, Dataset):
-            self._dataset = dataset
-        else:
-            self._dataset = Dataset(dataset)
+            utils.logging.log("Initializing training dataset.")
+        self._dataset = Dataset(dataset)
 
         self._dataset_registered = True
 
-    def add_to_dataset(
-        self, data: Mapping[str, Union[TensorLike, DerivedDatasetEntry]]
+    def add_data(
+        self, data: Mapping[str, Union[TensorLike, DerivedData]]
     ) -> None:
-        """Adds additional data entries to an existing dataset.
+        """Adds data to a parametric dimensionality reduction routine.
 
-        Useful for injecting additional data entries that can be derived from
-        other data, so that they don't have to be added manually (e.g., PCA
-        for pretraining routines).
+        Tensor-like data will be added to registered dataset. If none is
+        registered yet, a new one will be created and registered. Derived
+        entries will be added to the routine.
 
         Args:
-            data: A dict containing the data tensors to be added to the
-                dataset.
+            data: A dict containing the data tensors or derived dataset entries
+                to be added.
         """
-        if not self._dataset_registered:
-            raise exceptions.NoDatasetRegisteredError(
-                "Cannot inject additional data before registering a dataset."
-            )
+        regular_data: dict[str, TensorLike] = {}
+        derived_data: dict[str, DerivedData] = {}
+
         for k, val in data.items():
-            if isinstance(val, DerivedDatasetEntry):
-                if self.verbose:
-                    if k in self.dataset._derived_entries:
-                        utils.logging.log(
-                            f"Overwriting derived entry '{k}' in dataset."
-                        )
-                    else:
-                        utils.logging.log(
-                            f"Adding derived entry '{k}' to dataset."
-                        )
-                self.dataset._derived_entries[k] = val
-            elif isinstance(val, (np.ndarray, torch.Tensor)):
+            if isinstance(val, (np.ndarray, torch.Tensor)):
+                regular_data[k] = val
+            elif isinstance(val, DerivedData):
+                derived_data[k] = val
+            else:
+                raise ValueError(
+                    f"Value for key {k} is not a numpy array or PyTorch tensor."
+                )
+
+        if not self._dataset_registered:
+            self._register_dataset(regular_data)
+        else:
+            for k, val in regular_data.items():
                 if self.verbose:
                     if k in self.dataset.data:
                         utils.logging.log(
@@ -852,35 +827,61 @@ class ParametricDR(utils._ReprMixin):
                     else:
                         utils.logging.log(f"Adding entry '{k}' to dataset.")
                 self.dataset.data[k] = utils.convert.to_torch(val)
-            else:
-                raise ValueError(
-                    f"Value for key {k} is not a numpy array, PyTorch "
-                    "tensor or derived dataset entry."
-                )
 
-    def compute_derived_data(self, keep_definitions: bool = False) -> None:
+        for k, val in derived_data.items():
+            if self.verbose:
+                if k in self.derived_data:
+                    utils.logging.log(
+                        f"Overwriting entry '{k}' in derived data."
+                    )
+                else:
+                    utils.logging.log(f"Adding derived data entry '{k}'.")
+            self.derived_data[k] = val
+
+    def compute_derived_data(
+        self,
+        only: Optional[Literal["rel_based", "other"]] = None,
+    ) -> None:
         """Computes the derived data entries in the registered dataset.
 
         After caling this function, the derived entries will be stored as
-        regular entries in the dataset.
+        regular entries in the routine's dataset.
 
         Args:
-            keep_definitions: Whether or not to keep the derived entry
-                specifications after copmutation for potential reuse.
+            only: If "rel_based", only those entries are computed that require
+                global relations. If "other", all other entries are computed.
+                By default (None), all relations are computed.
         """
 
         if not self._dataset_registered:
             raise exceptions.NoDatasetRegisteredError(
-                "Cannot inject additional data before registering a dataset."
+                "Cannot compute data before registering a dataset."
             )
 
-        for k, entry in self.dataset._derived_entries.items():
-            if entry.requires_relations and not self._global_relations_computed:
+        compute_rel_based = True
+        compute_other = True
+        if only == "rel_based":
+            compute_other = False
+        elif only == "other":
+            compute_rel_based = False
+        elif only is not None:
+            raise ValueError(
+                "Expected 'rel', 'other', or None for parameter 'only'."
+            )
+
+        for k, entry in self.derived_data.items():
+            if (
+                entry.requires_relations
+                and compute_rel_based
+                and not self._global_relations_computed
+            ):
                 raise exceptions.RelationsNotComputedError(
-                    "Cannot compute derived dataset entry "
-                    "before computing global relations."
+                    "Cannot compute relation-based derived entry before "
+                    "computing global relations."
                 )
-            else:
+            elif (entry.requires_relations and compute_rel_based) or (
+                not entry.requires_relations and compute_other
+            ):
                 if self.verbose:
                     utils.logging.log(f"Computing derived data entry '{k}'.")
 
@@ -897,13 +898,11 @@ class ParametricDR(utils._ReprMixin):
                     ],
                 ] = {
                     "data": self.dataset.data,
-                    "rel": self.global_relation_data,
+                    "rels": self.global_relation_data,
                 }
 
                 args = [selector[i][j] for i, j in entry.type_key_tuples]
-                self.add_to_dataset({k: entry.func(*args, **entry.kwargs)})
-            if not keep_definitions:
-                self.dataset._derived_entries = {}
+                self.add_data({k: entry.func(*args, **entry.kwargs)})
 
     def compute_global_relations(self, force: bool = False) -> None:
         """Computes the global relations.
@@ -1057,13 +1056,30 @@ class ParametricDR(utils._ReprMixin):
 
             self.trained = True
 
-    def train(self) -> None:
+    def train(self, data: Optional[Data] = None) -> None:
         """Runs all training phases of a parametric dimensionality reduction
         routine.
+
+        data: The training data, passed either as a single numpy array or
+            PyTorch tensor, or as a dictionary containing multiple arrays
+            and/or tensors.
         """
+
+        if data is None:
+            if not self._dataset_registered:
+                raise exceptions.NoDatasetRegisteredError(
+                    "Attempted to start training, but no data was pre-added "
+                    "or passed to 'train'."
+                )
+        elif isinstance(data, (np.ndarray, torch.Tensor)):
+            self.add_data({"main": data})
+        else:
+            self.add_data(data)
+
         self._prepare_training()
-        self.compute_derived_data()
+        self.compute_derived_data(only="other")
         self.compute_global_relations()
+        self.compute_derived_data(only="rel_based")
 
         self.model.train()
 
@@ -1083,18 +1099,20 @@ def _pca(x: TensorLike, **kwargs):
 
 
 def _spectral(reldata: relationdata.RelationData, **kwargs):
-    return torch.tensor(
+    spectral = torch.tensor(
         sklearn.manifold.SpectralEmbedding(
             n_components=kwargs["out_dim"],
             affinity="precomputed",
         ).fit_transform(reldata.to_square_array().data),
         dtype=torch.float,
     )
+    spectral = (spectral - spectral.mean(dim=0)) / spectral.std(dim=0)
+    return spectral
 
 
 def _derived_entries_from_spec(
     spec: list[dict],
-) -> dict[str, DerivedDatasetEntry]:
+) -> dict[str, DerivedData]:
 
     df_dict: dict[str, Callable] = {
         "pca": _pca,
@@ -1103,7 +1121,7 @@ def _derived_entries_from_spec(
 
     derived_entries = {}
     for entry in spec:
-        derived_entries[entry["name"]] = DerivedDatasetEntry(
+        derived_entries[entry["name"]] = DerivedData(
             df_dict[entry["data func"]],
             entry["keys"],
             **entry.get("options", {}),
@@ -1148,7 +1166,7 @@ def _relations_from_spec(
     batch_relations: dict[str, relations.Relations] = {}
 
     for entry in spec:
-        data_key = entry.get("attr", "main")
+        data_key = entry.get("field", "main")
         options = entry.get("options", {})
         rel_type = rel_dict[entry["type"]]
         if rel_type is not relations.Precomputed:

@@ -19,7 +19,7 @@ TensorLike = Union[
     torch.Tensor,
 ]
 
-TypeKeyTuples = list[tuple[Union[Literal["data"], Literal["rel"]], str]]
+TypeKeyTuples = list[tuple[Union[Literal["data"], Literal["rels"]], str]]
 
 BinaryTensorFun = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 

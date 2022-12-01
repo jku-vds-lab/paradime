@@ -60,7 +60,7 @@ schema = {
                         "fromto",
                     ],
                 },
-                "attr": {
+                "field": {
                     "type": "string",
                 },
                 "options": {"type": "dict"},
