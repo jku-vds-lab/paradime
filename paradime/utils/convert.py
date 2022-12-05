@@ -1,4 +1,4 @@
-"""Conversion utilities for paraDime.
+"""Conversion utilities for ParaDime.
 
 The :mod:`paradime.utils.convert` module implements various conversion
 functions for tensors-like objects and index lists.

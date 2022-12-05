@@ -1,7 +1,7 @@
-"""Losses for paraDime routines.
+"""Losses for ParaDime routines.
 
 The :mod:`paradime.loss` module implements the specification of losses for
-paraDime routines. The supported losses are
+ParaDime routines. The supported losses are
 :class:`paradime.loss.RelationLoss`,
 :class:`paradime.loss.ClassificationLoss`,
 :class:`paradime.loss.ReconstructionLoss`, and
@@ -219,7 +219,7 @@ class ClassificationLoss(Loss):
     def __init__(
         self,
         loss_function: BinaryTensorFun = torch.nn.CrossEntropyLoss(),
-        data_key: str = "data",
+        data_key: str = "main",
         label_key: str = "labels",
         classification_method: str = "classify",
         name: Optional[str] = None,
@@ -271,7 +271,7 @@ class PositionLoss(Loss):
     def __init__(
         self,
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
-        data_key: str = "data",
+        data_key: str = "main",
         position_key: str = "pos",
         embedding_method: str = "embed",
         name: Optional[str] = None,
@@ -323,7 +323,7 @@ class ReconstructionLoss(Loss):
     def __init__(
         self,
         loss_function: BinaryTensorFun = torch.nn.MSELoss(),
-        data_key: str = "data",
+        data_key: str = "main",
         encoding_method: str = "encode",
         decoding_method: str = "decode",
         name: Optional[str] = None,

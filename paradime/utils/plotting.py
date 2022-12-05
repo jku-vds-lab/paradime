@@ -1,4 +1,4 @@
-"""Plotting utilities for paraDime.
+"""Plotting utilities for ParaDime.
 
 The :mod:`paradime.utils.plotting` module implements plotting functions and
 color palette retrieval.
@@ -15,7 +15,7 @@ from paradime.types import TensorLike
 from paradime.utils.make_palette import make_palette
 
 def get_color_palette() -> dict[str, str]:
-    """Get the custom paraDime color palette.
+    """Get the custom ParaDime color palette.
     
     The palette is usually located in an assets folder in the form of a JSON
     file. If the JSON file is not found, this method attemps to create it from
@@ -68,7 +68,7 @@ def scatterplot(
             a categorical color scale is used and a legend is constructed
             automatically.
         colormap: A list of colors to use instead of the default categorical
-            color scale based on the paraDime palette.
+            color scale based on the ParaDime palette.
         labels_to_index: A dict that maps labels to indices which are then used
             to access the colors in the categorical color scale.
         figsize: Width and height of the plot in inches.

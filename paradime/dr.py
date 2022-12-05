@@ -1,23 +1,73 @@
-"""Main module of paraDime.
+"""Main module of ParaDime.
 
-The :mod:`paradime.dr` module implements the main functionality of paraDime.
+The :mod:`paradime.dr` module implements the main functionality of ParaDime.
 This includes the :class:`paradime.dr.ParametricDR` class, as well as
 :class:`paradime.dr.Dataset` and :class:`paradime.dr.TrainingPhase`.
 """
 
 import copy
-from typing import Union, Literal, Optional
+from typing import Callable, Literal, Mapping, Optional, Type, TypeVar, Union
 
 import numpy as np
 import torch
+import sklearn.decomposition
+import sklearn.manifold
 
 from paradime import exceptions
 from paradime import models
 from paradime import relationdata
 from paradime import relations
+from paradime import transforms
 from paradime import loss as pdloss
-from paradime.types import Data, TensorLike
+from paradime.types import TensorLike, TypeKeyTuples
 from paradime import utils
+
+
+class DerivedData:
+    """A derived dataset entry to be computed later.
+
+    Derived dataset entries can be used to set up rules for extending existing
+    datasets later based on functions acting on other dataset entries or
+    global relations.
+
+    Args:
+        func: The function to compute the derived data.
+        type_key_tuples: A list of (type, key) tuples, where the types can be
+            ``'data'`` or ``'rels'``, and the keys are used to access the
+            respective entries.
+    """
+
+    def __init__(
+        self,
+        func: Callable[..., TensorLike],
+        type_key_tuples: TypeKeyTuples = [("data", "main")],
+        **kwargs,
+    ):
+
+        self.func = func
+        self.requires_relations = False
+        self.type_key_tuples = type_key_tuples
+        self.kwargs = kwargs
+
+        types, keys = list(zip(*type_key_tuples))
+
+        for t in types:
+            if t == "data":
+                pass
+            elif t == "rels":
+                self.requires_relations = True
+            else:
+                raise ValueError(
+                    "Expected 'data' or 'rels' as argument type "
+                    f"for derived entry. Found '{t}' instead."
+                )
+
+
+Data = Union[
+    np.ndarray,
+    torch.Tensor,
+    Mapping[str, Union[np.ndarray, torch.Tensor]],
+]
 
 
 class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
@@ -43,35 +93,39 @@ class Dataset(torch.utils.data.Dataset, utils._ReprMixin):
         self.data: dict[str, torch.Tensor] = {}
 
         if isinstance(data, (np.ndarray, torch.Tensor)):
-            data = {"data": data}
+            data = {"main": data}
         elif not isinstance(data, dict):
             raise ValueError(
                 "Expected numpy array, PyTorch tensor, or dict "
                 f"instead of {type(data)}."
             )
-        else:
-            if "data" not in data:
-                raise AttributeError(
-                    "Dataset expects a dict with a 'data' entry."
-                )
-        for k in data:
-            val = data[k]
+        # else:
+        #     if "data" not in data:
+        #         raise AttributeError(
+        #             "Dataset expects a dict with a 'data' entry."
+        #         )
+
+        for i, (k, val) in enumerate(data.items()):
             if not isinstance(val, (np.ndarray, torch.Tensor)):
                 raise ValueError(
-                    f"Value for key {k} is not a numpy array "
-                    "or PyTorch tensor."
+                    f"Value for key {k} is not a numpy array or "
+                    "PyTorch tensor."
                 )
-            if len(val) != len(data["data"]):
+            elif i == 0:
+                self.num_items = len(val)
+                self.data[k] = utils.convert.to_torch(val)
+            elif len(val) != self.num_items:
                 raise ValueError(
                     "Dataset dict must have values of equal length."
                 )
-            self.data[k] = utils.convert.to_torch(data[k])
+            else:
+                self.data[k] = utils.convert.to_torch(val)
 
         if "indices" not in self.data:
             self.data["indices"] = torch.arange(len(self))
 
     def __len__(self) -> int:
-        return len(self.data["data"])
+        return self.num_items
 
     def __getitem__(self, index) -> dict[str, torch.Tensor]:
         out = {}
@@ -105,12 +159,19 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
         dataset: Dataset,
         relations: relationdata.RelationData,
         neg_sampling_rate: int = 5,
+        data_key: str = "main",
     ):
 
         self.dataset = dataset
         self.p_ij = relations.to_sparse_array().data.tocoo()
         self.weights = self.p_ij.data
         self.neg_sampling_rate = neg_sampling_rate
+        self.data_key = data_key
+
+        if self.data_key not in self.dataset.data:
+            raise KeyError(
+                f"Dataset does not have an attribute '{self.data_key}'."
+            )
 
     def __len__(self) -> int:
         return len(self.dataset)
@@ -142,7 +203,10 @@ class NegSampledEdgeDataset(torch.utils.data.Dataset):
         edge_data = {"row": rows, "col": cols, "rel": p_simpl}
 
         edge_data["from_to_data"] = torch.stack(
-            (self.dataset.data["data"][rows], self.dataset.data["data"][cols])
+            (
+                self.dataset.data[self.data_key][rows],
+                self.dataset.data[self.data_key][cols],
+            )
         )
 
         remaining_data = torch.utils.data.default_collate(
@@ -209,13 +273,19 @@ class TrainingPhase(utils._ReprMixin):
             should be used for negative edge sampling.
         neg_sampling_rate: The number of negative (i.e., non-neighbor) edges
             to sample for each real neighborhood edge.
-        loss: The loss that is minimized in this training phase.
+        loss_keys: The keys under which to find the losses that should be
+            minimized in this training phase.
+        loss_weights: The weights for the losses. If none are specified, losses
+            will be weighed equally.
         optimizer: The optmizer to use for loss minimization.
         learning_rate: The learning rate used in the optimization.
         report_interval: How often the loss should be reported during
             training, given in terms of epochs. E.g., with a setting of 5,
             the loss will be reported every 5 epochs.
         kwargs: Additional kwargs that are passed on to the optimizer.
+
+    Attributes:
+        loss: The loss constructed from the keys and weights specified above.
     """
 
     def __init__(
@@ -227,7 +297,8 @@ class TrainingPhase(utils._ReprMixin):
         sampling: Literal["standard", "negative_edge"] = "standard",
         edge_rel_key: str = "rel",
         neg_sampling_rate: int = 5,
-        loss: pdloss.Loss = pdloss.Loss(),
+        loss_keys: list[str] = ["loss"],
+        loss_weights: Optional[list[float]] = None,
         optimizer: type = torch.optim.Adam,
         learning_rate: float = 0.01,
         report_interval: int = 5,
@@ -244,7 +315,17 @@ class TrainingPhase(utils._ReprMixin):
         self.edge_rel_key = edge_rel_key
         self.neg_sampling_rate = neg_sampling_rate
 
-        self.loss = loss
+        if not loss_keys:
+            raise ValueError("Training phase requires at least one loss key")
+        else:
+            self.loss_keys = loss_keys
+
+        if loss_weights is None:
+            self.loss_weights = list(np.ones(len(self.loss_keys)))
+        else:
+            self.loss_weights = loss_weights
+
+        self._loss: Optional[pdloss.Loss] = None
 
         self.optimizer = optimizer
         self.learning_rate = learning_rate
@@ -256,8 +337,43 @@ class TrainingPhase(utils._ReprMixin):
                 f"{self.optimizer} is not a valid PyTorch optimizer."
             )
 
+    @property
+    def loss(self) -> pdloss.Loss:
+        if self._loss is None:
+            raise exceptions.LossNotDeterminedError(
+                """Attempted to access loss before it was determined."""
+            )
+        else:
+            return self._loss
+
+    @loss.setter
+    def loss(self, ls: pdloss.Loss):
+        self._loss = ls
+
+    def _determine_loss(self, loss_dict: dict[str, pdloss.Loss]) -> None:
+        if len(self.loss_keys) == 1:
+            lk = self.loss_keys[0]
+            if lk not in loss_dict:
+                raise KeyError(f"Invalid loss key {lk}.")
+            self.loss = copy.deepcopy(loss_dict[lk])
+        else:
+            losses: list[pdloss.Loss] = []
+            for lk in self.loss_keys:
+                if not lk in loss_dict:
+                    raise KeyError(f"Invalid loss key {lk}.")
+                else:
+                    losses.append(copy.deepcopy(loss_dict[lk]))
+            self.loss = pdloss.CompoundLoss(
+                losses=losses,
+                weights=self.loss_weights,
+                name=self.name,
+            )
+
 
 RelOrRelDict = Union[relations.Relations, dict[str, relations.Relations]]
+LossOrLossDict = Union[pdloss.Loss, dict[str, pdloss.Loss]]
+
+_ParametricDR = TypeVar("_ParametricDR", bound="ParametricDR")
 
 
 class ParametricDR(utils._ReprMixin):
@@ -274,11 +390,10 @@ class ParametricDR(utils._ReprMixin):
             the embedding).
         hidden_dims: Dimensions of hidden layers for the default fully
             connected model that is created if no model is specified.
-        dataset: The dataset on which to perform the training, passed either
-            as a single numpy array or PyTorch tensor, a dictionary containing
-            multiple arrays and/or tensors, or a :class:`paradime.dr.Dataset`
-            Datasets can be registerd after instantiation using the
-            :meth:`register_dataset` class method.
+        derived_data: A dictionary of :class:`paradime.dr.DerivedData`
+            instances. These entries are computed before training, either
+            before or after the global relations, depending on the options in
+            the entries.
         global_relations: A single :class:`paradime.relations.Relations`
             instance or a dictionary with multiple
             :class:`paradime.relations.Relations` instances. Global relations
@@ -289,6 +404,9 @@ class ParametricDR(utils._ReprMixin):
             are calculated during training for each batch and are compared to
             an appropriate subset of the global relations by a
             :class:`paradime.loss.RelationLoss`.
+        losses: A single :class:`paradime.loss.Loss` instance or a dictionary
+            with multiple :class:`paradime.loss.Loss` instances. These losses
+            are accessed by the training phases via the respective keys.
         training_defaults: A :class:`paradime.dr.TrainingPhase` object with
             settings that override the default values of all other training
             phases. This parameter is useful to avoid having to repeatedly
@@ -298,7 +416,7 @@ class ParametricDR(utils._ReprMixin):
         training_phases: A single :class:`paradime.dr.TrainingPhase` object or
             a list of :class:`paradime.dr.TrainingPhase` objects defining the
             training phases to be run. Training phases can also be added
-            after instantiation using the :meth:`add_training_pahse` class
+            after instantiation using the :meth:`add_training_phase` class
             method.
         use_cuda: Whether or not to use the GPU for training.
         verbose: Verbosity flag. This setting overrides all verbosity settings
@@ -316,9 +434,10 @@ class ParametricDR(utils._ReprMixin):
         in_dim: Optional[int] = None,
         out_dim: int = 2,
         hidden_dims: list[int] = [100, 50],
-        dataset: Optional[Union[Data, Dataset]] = None,
+        derived_data: Optional[dict[str, DerivedData]] = None,
         global_relations: Optional[RelOrRelDict] = None,
         batch_relations: Optional[RelOrRelDict] = None,
+        losses: Optional[LossOrLossDict] = None,
         training_defaults: TrainingPhase = TrainingPhase(),
         training_phases: Optional[list[TrainingPhase]] = None,
         use_cuda: bool = False,
@@ -329,22 +448,15 @@ class ParametricDR(utils._ReprMixin):
 
         self._dataset: Optional[Dataset] = None
         self._dataset_registered = False
-        if dataset is not None:
-            self.register_dataset(dataset)
+
+        if not derived_data:
+            self.derived_data: dict[str, DerivedData] = {}
+        else:
+            self.derived_data = derived_data
 
         self.model: torch.nn.Module
 
         if model is None:
-            if in_dim is None and not self._dataset_registered:
-                raise ValueError(
-                    "A value for 'in_dim' must be given if no model or "
-                    "dataset is specified."
-                )
-            elif in_dim is None and isinstance(self.dataset, Dataset):
-                try:
-                    in_dim = self.dataset.data["data"].shape[-1]
-                except KeyError:
-                    pass
             if isinstance(in_dim, int):
                 self.model = models.FullyConnectedEmbeddingModel(
                     in_dim,
@@ -352,8 +464,9 @@ class ParametricDR(utils._ReprMixin):
                     hidden_dims,
                 )
             else:
-                raise KeyError(
-                    "Failed to infer data dimensionality from dataset."
+                raise ValueError(
+                    "A value for 'in_dim' must be given if no model "
+                    "is specified."
                 )
         else:
             self.model = model
@@ -379,6 +492,13 @@ class ParametricDR(utils._ReprMixin):
         for k in self.batch_relations:
             self.batch_relations[k]._set_verbosity(self.verbose)
 
+        if isinstance(losses, pdloss.Loss):
+            self.losses = {"loss": losses}
+        elif losses is not None:
+            self.losses = losses
+        else:
+            raise ValueError("No losses specified.")
+
         self.training_defaults = training_defaults
 
         self.training_phases: list[TrainingPhase] = []
@@ -388,7 +508,10 @@ class ParametricDR(utils._ReprMixin):
 
         self.use_cuda = use_cuda
         if use_cuda:
-            self.model.cuda()
+            if torch.cuda.is_available():
+                self.model.cuda()
+            else:
+                raise exceptions.CUDANotAvailableError()
 
         self.trained = False
 
@@ -412,6 +535,38 @@ class ParametricDR(utils._ReprMixin):
     def __call__(self, X: TensorLike) -> torch.Tensor:
 
         return self.embed(X)
+
+    @classmethod
+    def from_spec(
+        cls: Type[_ParametricDR],
+        file_or_spec: Union[str, dict],
+        model: Optional[models.Model] = None,
+    ) -> _ParametricDR:
+
+        spec = utils.parsing.validate_spec(file_or_spec)
+
+        derived_data_spec = spec.get("derived data", {})
+        derived_entries = _derived_entries_from_spec(derived_data_spec)
+
+        relations_spec = spec.get("relations", {})
+        g_rels, b_rels = _relations_from_spec(relations_spec)
+
+        losses_spec = spec.get("losses", {})
+        losses = _losses_from_spec(losses_spec)
+
+        tp_spec = spec.get("training phases", {})
+        training_phases = _training_phases_from_spec(tp_spec)
+
+        dr = cls(
+            model=model,
+            derived_data=derived_entries,
+            global_relations=g_rels,
+            batch_relations=b_rels,
+            losses=losses,
+            training_phases=training_phases,
+        )
+
+        return dr
 
     def _call_model_method_by_name(
         self,
@@ -494,7 +649,8 @@ class ParametricDR(utils._ReprMixin):
         sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
-        loss: Optional[pdloss.Loss] = None,
+        loss_keys: Optional[list[str]] = None,
+        loss_weights: Optional[list[float]] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = 5,
@@ -529,8 +685,10 @@ class ParametricDR(utils._ReprMixin):
             self.training_defaults.edge_rel_key = edge_rel_key
         if neg_sampling_rate is not None:
             self.training_defaults.neg_sampling_rate = neg_sampling_rate
-        if loss is not None:
-            self.training_defaults.loss = loss
+        if loss_keys is not None:
+            self.training_defaults.loss_keys = loss_keys
+        if loss_weights is not None:
+            self.training_defaults.loss_weights = loss_weights
         if optimizer is not None:
             self.training_defaults.optimizer = optimizer
         if learning_rate is not None:
@@ -553,7 +711,8 @@ class ParametricDR(utils._ReprMixin):
         sampling: Optional[Literal["standard", "negative_edge"]] = None,
         edge_rel_key: Optional[str] = None,
         neg_sampling_rate: Optional[int] = None,
-        loss: Optional[pdloss.Loss] = None,
+        loss_keys: Optional[list[str]] = None,
+        loss_weights: Optional[list[float]] = None,
         optimizer: Optional[type] = None,
         learning_rate: Optional[float] = None,
         report_interval: Optional[int] = None,
@@ -596,8 +755,10 @@ class ParametricDR(utils._ReprMixin):
             training_phase.edge_rel_key = edge_rel_key
         if neg_sampling_rate is not None:
             training_phase.neg_sampling_rate = neg_sampling_rate
-        if loss is not None:
-            training_phase.loss = loss
+        if loss_keys is not None:
+            training_phase.loss_keys = loss_keys
+        if loss_weights is not None:
+            training_phase.loss_weights = loss_weights
         if optimizer is not None:
             training_phase.optimizer = optimizer
         if learning_rate is not None:
@@ -606,6 +767,8 @@ class ParametricDR(utils._ReprMixin):
             training_phase.report_interval = report_interval
         if kwargs:
             training_phase.kwargs = {**training_phase.kwargs, **kwargs}
+
+        training_phase._determine_loss(self.losses)
 
         if isinstance(
             training_phase.loss, (pdloss.RelationLoss, pdloss.CompoundLoss)
@@ -616,46 +779,135 @@ class ParametricDR(utils._ReprMixin):
 
         self.training_phases.append(training_phase)
 
-    def register_dataset(self, dataset: Union[Data, Dataset]) -> None:
+    def _register_dataset(self, dataset: Data) -> None:
         """Registers a dataset for a parametric dimensionality reduction
         routine.
 
         Args:
             dataset: The data, passed either as a single numpy array or PyTorch
-                tensor, a dictionary containing multiple arrays and/or
-                tensors, or a :class:`paradime.dr.Dataset`.
+                tensor, or a dictionary containing multiple arrays and/or
+                tensors.
         """
         if self.verbose:
-            utils.logging.log("Registering dataset.")
-        if isinstance(dataset, Dataset):
-            self._dataset = dataset
-        else:
-            self._dataset = Dataset(dataset)
+            utils.logging.log("Initializing training dataset.")
+        self._dataset = Dataset(dataset)
 
         self._dataset_registered = True
 
-    def add_to_dataset(self, data: dict[str, TensorLike]) -> None:
-        """Adds additional data entries to an existing dataset.
+    def add_data(
+        self, data: Mapping[str, Union[TensorLike, DerivedData]]
+    ) -> None:
+        """Adds data to a parametric dimensionality reduction routine.
 
-        Useful for injecting additional data entries that can be derived from
-        other data, so that they don't have to be added manually (e.g., PCA
-        for pretraining routines).
+        Tensor-like data will be added to registered dataset. If none is
+        registered yet, a new one will be created and registered. Derived
+        entries will be added to the routine.
 
         Args:
-            data: A dict containing the data tensors to be added to the
-                dataset.
+            data: A dict containing the data tensors or derived dataset entries
+                to be added.
         """
+        regular_data: dict[str, TensorLike] = {}
+        derived_data: dict[str, DerivedData] = {}
+
+        for k, val in data.items():
+            if isinstance(val, (np.ndarray, torch.Tensor)):
+                regular_data[k] = val
+            elif isinstance(val, DerivedData):
+                derived_data[k] = val
+            else:
+                raise ValueError(
+                    f"Value for key {k} is not a numpy array or PyTorch tensor."
+                )
+
+        if not self._dataset_registered:
+            self._register_dataset(regular_data)
+        else:
+            for k, val in regular_data.items():
+                if self.verbose:
+                    if k in self.dataset.data:
+                        utils.logging.log(
+                            f"Overwriting entry '{k}' in dataset."
+                        )
+                    else:
+                        utils.logging.log(f"Adding entry '{k}' to dataset.")
+                self.dataset.data[k] = utils.convert.to_torch(val)
+
+        for k, val in derived_data.items():
+            if self.verbose:
+                if k in self.derived_data:
+                    utils.logging.log(
+                        f"Overwriting entry '{k}' in derived data."
+                    )
+                else:
+                    utils.logging.log(f"Adding derived data entry '{k}'.")
+            self.derived_data[k] = val
+
+    def compute_derived_data(
+        self,
+        only: Optional[Literal["rel_based", "other"]] = None,
+    ) -> None:
+        """Computes the derived data entries in the registered dataset.
+
+        After caling this function, the derived entries will be stored as
+        regular entries in the routine's dataset.
+
+        Args:
+            only: If "rel_based", only those entries are computed that require
+                global relations. If "other", all other entries are computed.
+                By default (None), all relations are computed.
+        """
+
         if not self._dataset_registered:
             raise exceptions.NoDatasetRegisteredError(
-                "Cannot inject additional data before registering a dataset."
+                "Cannot compute data before registering a dataset."
             )
-        for k in data:
-            if self.verbose:
-                if hasattr(self.dataset, k):
-                    utils.logging.log(f"Overwriting entry '{k}' in dataset.")
-                else:
-                    utils.logging.log(f"Adding entry '{k}' to dataset.")
-            self.dataset.data[k] = utils.convert.to_torch(data[k])
+
+        compute_rel_based = True
+        compute_other = True
+        if only == "rel_based":
+            compute_other = False
+        elif only == "other":
+            compute_rel_based = False
+        elif only is not None:
+            raise ValueError(
+                "Expected 'rel', 'other', or None for parameter 'only'."
+            )
+
+        for k, entry in self.derived_data.items():
+            if (
+                entry.requires_relations
+                and compute_rel_based
+                and not self._global_relations_computed
+            ):
+                raise exceptions.RelationsNotComputedError(
+                    "Cannot compute relation-based derived entry before "
+                    "computing global relations."
+                )
+            elif (entry.requires_relations and compute_rel_based) or (
+                not entry.requires_relations and compute_other
+            ):
+                if self.verbose:
+                    utils.logging.log(f"Computing derived data entry '{k}'.")
+
+                options = entry.kwargs
+
+                if "out_dim" not in options and entry.func in [_pca, _spectral]:
+                    options["out_dim"] = 2
+
+                selector: dict[
+                    str,
+                    Union[
+                        dict[str, torch.Tensor],
+                        dict[str, relationdata.RelationData],
+                    ],
+                ] = {
+                    "data": self.dataset.data,
+                    "rels": self.global_relation_data,
+                }
+
+                args = [selector[i][j] for i, j in entry.type_key_tuples]
+                self.add_data({k: entry.func(*args, **entry.kwargs)})
 
     def compute_global_relations(self, force: bool = False) -> None:
         """Computes the global relations.
@@ -809,12 +1061,30 @@ class ParametricDR(utils._ReprMixin):
 
             self.trained = True
 
-    def train(self) -> None:
+    def train(self, data: Optional[Data] = None) -> None:
         """Runs all training phases of a parametric dimensionality reduction
         routine.
+
+        data: The training data, passed either as a single numpy array or
+            PyTorch tensor, or as a dictionary containing multiple arrays
+            and/or tensors.
         """
+
+        if data is None:
+            if not self._dataset_registered:
+                raise exceptions.NoDatasetRegisteredError(
+                    "Attempted to start training, but no data was pre-added "
+                    "or passed to 'train'."
+                )
+        elif isinstance(data, (np.ndarray, torch.Tensor)):
+            self.add_data({"main": data})
+        else:
+            self.add_data(data)
+
         self._prepare_training()
+        self.compute_derived_data(only="other")
         self.compute_global_relations()
+        self.compute_derived_data(only="rel_based")
 
         self.model.train()
 
@@ -822,3 +1092,184 @@ class ParametricDR(utils._ReprMixin):
             self.run_training_phase(tp)
 
         self.model.eval()
+
+
+def _pca(x: TensorLike, **kwargs):
+    return torch.tensor(
+        sklearn.decomposition.PCA(n_components=kwargs["out_dim"]).fit_transform(
+            x
+        ),
+        dtype=torch.float,
+    )
+
+
+def _spectral(reldata: relationdata.RelationData, **kwargs):
+    spectral = torch.tensor(
+        sklearn.manifold.SpectralEmbedding(
+            n_components=kwargs["out_dim"],
+            affinity="precomputed",
+        ).fit_transform(reldata.to_square_array().data),
+        dtype=torch.float,
+    )
+    spectral = (spectral - spectral.mean(dim=0)) / spectral.std(dim=0)
+    return spectral
+
+
+def _derived_entries_from_spec(
+    spec: list[dict],
+) -> dict[str, DerivedData]:
+
+    df_dict: dict[str, Callable] = {
+        "pca": _pca,
+        "spectral": _spectral,
+    }
+
+    derived_entries = {}
+    for entry in spec:
+        derived_entries[entry["name"]] = DerivedData(
+            df_dict[entry["data func"]],
+            entry["keys"],
+            **entry.get("options", {}),
+        )
+    return derived_entries
+
+
+def _transforms_from_spec(
+    spec: list[dict],
+) -> list[transforms.RelationTransform]:
+
+    tf_dict: dict[str, type[transforms.RelationTransform]] = {
+        "symmetrize": transforms.Symmetrize,
+        "normalize": transforms.Normalize,
+        "normalize rows": transforms.NormalizeRows,
+        "perplexity": transforms.PerplexityBasedRescale,
+        "t-dist": transforms.StudentTTransform,
+        "connect": transforms.ConnectivityBasedRescale,
+    }
+
+    tfs: list[transforms.RelationTransform] = []
+
+    for tfspec in spec:
+        tfs.append(tf_dict[tfspec["type"]](**tfspec.get("options", {})))
+
+    return tfs
+
+
+def _relations_from_spec(
+    spec: list[dict],
+) -> tuple[dict[str, relations.Relations], dict[str, relations.Relations]]:
+
+    rel_dict: dict[str, type[relations.Relations]] = {
+        "precomp": relations.Precomputed,
+        "pdist": relations.PDist,
+        "neighbor": relations.NeighborBasedPDist,
+        "pdistdiff": relations.DifferentiablePDist,
+        "fromto": relations.DistsFromTo,
+    }
+
+    global_relations: dict[str, relations.Relations] = {}
+    batch_relations: dict[str, relations.Relations] = {}
+
+    for entry in spec:
+        data_key = entry.get("field", "main")
+        options = entry.get("options", {})
+        rel_type = rel_dict[entry["type"]]
+        if rel_type is not relations.Precomputed:
+            options["data_key"] = data_key
+        tfs = _transforms_from_spec(entry["transforms"])
+        rel = rel_type(
+            transform=tfs,
+            **options,
+        )
+        if entry["level"] == "global":
+            global_relations[entry["name"]] = rel
+        else:
+            batch_relations[entry["name"]] = rel
+
+    return global_relations, batch_relations
+
+
+def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
+
+    loss_dict: dict[str, type[pdloss.Loss]] = {
+        "relation": pdloss.RelationLoss,
+        "classification": pdloss.ClassificationLoss,
+        "reconstruction": pdloss.ReconstructionLoss,
+        "position": pdloss.PositionLoss,
+    }
+
+    loss_func_dict: dict[str, Callable] = {
+        "mse": torch.nn.MSELoss(),
+        "kl div": pdloss.kullback_leibler_div,
+        "cross entropy": torch.nn.CrossEntropyLoss(),
+        "umap cross entropy": pdloss.cross_entropy_loss,
+    }
+
+    losses: dict[str, pdloss.Loss] = {}
+
+    for entry in spec:
+        if loss_dict[entry["type"]] == pdloss.RelationLoss:
+            methods = entry["keys"].get("methods", ["embed"])
+            losses[entry["name"]] = pdloss.RelationLoss(
+                loss_function=loss_func_dict[entry["func"]],
+                global_relation_key=entry["keys"]["rels"][0],
+                batch_relation_key=entry["keys"]["rels"][1],
+                embedding_method=methods[0],
+            )
+        elif loss_dict[entry["type"]] == pdloss.ClassificationLoss:
+            methods = entry["keys"].get("methods", ["classify"])
+            losses[entry["name"]] = pdloss.ClassificationLoss(
+                loss_function=loss_func_dict[entry["func"]],
+                data_key=entry["keys"]["data"][0],
+                label_key=entry["keys"]["data"][1],
+                classification_method=methods[0],
+            )
+        elif loss_dict[entry["type"]] == pdloss.ReconstructionLoss:
+            methods = entry["keys"].get("methods", ["encode", "decode"])
+            losses[entry["name"]] = pdloss.ReconstructionLoss(
+                loss_function=loss_func_dict[entry["func"]],
+                data_key=entry["keys"]["data"][0],
+                encoding_method=methods[0],
+                decoding_method=methods[1],
+            )
+        else:
+            methods = entry["keys"].get("methods", ["embed"])
+            losses[entry["name"]] = pdloss.PositionLoss(
+                loss_function=loss_func_dict[entry["func"]],
+                data_key=entry["keys"]["data"][0],
+                position_key=entry["keys"]["data"][1],
+                embedding_method=methods[0],
+            )
+
+    return losses
+
+
+def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
+
+    training_phases: list[TrainingPhase] = []
+
+    for entry in spec:
+        if "optimizer" in entry:
+            optimizer = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[
+                entry["optimizer"]["type"]
+            ]
+            optim_options = entry["optimizer"].get("options", {})
+        else:
+            optimizer = torch.optim.Adam
+            optim_options = {}
+        tp = TrainingPhase(
+            epochs=entry.get("epochs", 5),
+            sampling=(
+                "negative_edge"
+                if entry["sampling"]["type"] == "edge"
+                else "standard"
+            ),
+            loss_keys=entry["loss"]["components"],
+            loss_weights=entry["loss"].get("weights"),
+            optimizer=optimizer,
+            **entry["sampling"].get("options", {}),
+            **optim_options,
+        )
+        training_phases.append(tp)
+
+    return training_phases

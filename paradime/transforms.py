@@ -1,4 +1,4 @@
-"""Relation transforms for paraDime.
+"""Relation transforms for ParaDime.
 
 The :mod:`paradime.tranforms` module defines various classes used to transform
 relations between data points.
@@ -22,6 +22,9 @@ class RelationTransform(utils._ReprMixin):
 
     Custom transforms should subclass this class.
     """
+
+    def __init__(self, **kwargs):
+        pass
 
     def __call__(
         self,

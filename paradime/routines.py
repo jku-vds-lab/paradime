@@ -1,4 +1,4 @@
-"""Predefined paraDime routines for existing DR techniques.
+"""Predefined ParaDime routines for existing DR techniques.
 
 The :mod:`paradime.routines` module implements parametric versions of existing
 dimensionality reduction techniques using the :class:`paradime.dr.ParametricDR`
@@ -16,7 +16,6 @@ from paradime import loss as pdloss
 from paradime import models
 from paradime import relations
 from paradime import transforms
-from paradime.types import Data
 
 
 class ParametricTSNE(dr.ParametricDR):
@@ -89,8 +88,7 @@ class ParametricTSNE(dr.ParametricDR):
         init_batch_size: Optional[int] = None,
         learning_rate: float = 0.01,
         init_learning_rate: Optional[float] = None,
-        data_key: str = "data",
-        dataset: Optional[Union[Data, dr.Dataset]] = None,
+        data_key: str = "main",
         use_cuda: bool = False,
         verbose: bool = False,
     ):
@@ -124,40 +122,50 @@ class ParametricTSNE(dr.ParametricDR):
                 transforms.ToSquareTensor(),
             ]
         )
+
+        derived_data: dict[str, dr.DerivedData] = {}
+        if self.initialization == "pca":
+            derived_data["pca"] = dr.DerivedData(
+                dr._pca,
+                type_key_tuples=[("data", self.data_key)],
+                n_components=self.out_dim,
+            )
+
+        losses = {
+            "init": pdloss.PositionLoss(position_key="pca"),
+            "embedding": pdloss.RelationLoss(
+                loss_function=pdloss.kullback_leibler_div
+            ),
+        }
+
+        init_phase = dr.TrainingPhase(
+            name="pca_init",
+            loss_keys=["init"],
+            batch_size=self.init_batch_size,
+            epochs=self.init_epochs,
+            learning_rate=self.init_learning_rate,
+        )
+
+        main_phase = dr.TrainingPhase(
+            name="embedding",
+            loss_keys=["embedding"],
+            batch_size=self.batch_size,
+            epochs=self.epochs,
+            learning_rate=self.learning_rate,
+        )
+
         super().__init__(
             model=model,
             in_dim=in_dim,
             out_dim=out_dim,
             hidden_dims=hidden_dims,
-            dataset=dataset,
+            derived_data=derived_data,
             global_relations=global_rel,
             batch_relations=batch_rel,
+            losses=losses,
+            training_phases=[init_phase, main_phase],
             use_cuda=use_cuda,
             verbose=verbose,
-        )
-
-    def _prepare_training(self) -> None:
-        if self.initialization == "pca":
-            pca = torch.tensor(
-                sklearn.decomposition.PCA(
-                    n_components=self.out_dim
-                ).fit_transform(self.dataset.data[self.data_key]),
-                dtype=torch.float,
-            )
-            self.add_to_dataset({"pca": pca})
-            self.add_training_phase(
-                name="pca_init",
-                loss=pdloss.PositionLoss(position_key="pca"),
-                batch_size=self.init_batch_size,
-                epochs=self.init_epochs,
-                learning_rate=self.init_learning_rate,
-            )
-        self.add_training_phase(
-            name="embedding",
-            loss=pdloss.RelationLoss(loss_function=pdloss.kullback_leibler_div),
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            learning_rate=self.learning_rate,
         )
 
 
@@ -241,8 +249,8 @@ class ParametricUMAP(dr.ParametricDR):
         init_batch_size: int = 100,
         learning_rate: float = 0.005,
         init_learning_rate: float = 0.05,
-        data_key: str = "data",
-        dataset: Optional[Union[Data, dr.Dataset]] = None,
+        data_key: str = "main",
+        dataset: Optional[Union[dr.Data, dr.Dataset]] = None,
         use_cuda: bool = False,
         verbose: bool = False,
     ):
@@ -273,44 +281,50 @@ class ParametricUMAP(dr.ParametricDR):
                 )
             ]
         )
-        super().__init__(
-            model=model,
-            in_dim=in_dim,
-            out_dim=out_dim,
-            hidden_dims=hidden_dims,
-            dataset=dataset,
-            global_relations=global_rel,
-            batch_relations=batch_rel,
-            use_cuda=use_cuda,
-            verbose=verbose,
+
+        derived_data: dict[str, dr.DerivedData] = {}
+        if self.initialization == "spectral":
+            derived_data["spectral"] = dr.DerivedData(
+                dr._spectral,
+                type_key_tuples=[("rels", "rel")],
+                n_components=self.out_dim,
+            )
+
+        losses = {
+            "spectral_init": pdloss.PositionLoss(position_key="spectral"),
+            "embedding": pdloss.RelationLoss(
+                loss_function=pdloss.cross_entropy_loss
+            ),
+        }
+
+        init_phase = dr.TrainingPhase(
+            name="spectral_init",
+            loss_keys=["spectral_init"],
+            batch_size=self.init_batch_size,
+            epochs=self.init_epochs,
+            learning_rate=self.init_learning_rate,
         )
 
-    def _prepare_training(self) -> None:
-        self.compute_global_relations()
-        if self.initialization == "spectral":
-            spectral = torch.tensor(
-                sklearn.manifold.SpectralEmbedding(
-                    affinity="precomputed"
-                ).fit_transform(
-                    self.global_relation_data["rel"].to_square_array().data
-                ),
-                dtype=torch.float,
-            )
-            spectral = (spectral - spectral.mean(dim=0)) / spectral.std(dim=0)
-            self.add_to_dataset({"spectral": spectral})
-            self.add_training_phase(
-                name="spectral_init",
-                loss=pdloss.PositionLoss(position_key="spectral"),
-                batch_size=self.init_batch_size,
-                epochs=self.init_epochs,
-                learning_rate=self.init_learning_rate,
-            )
-        self.add_training_phase(
+        main_phase = dr.TrainingPhase(
             name="embedding",
-            loss=pdloss.RelationLoss(loss_function=pdloss.cross_entropy_loss),
+            loss_keys=["embedding"],
             sampling="negative_edge",
             neg_sampling_rate=self.negative_sampling_rate,
             batch_size=self.batch_size,
             epochs=self.epochs,
             learning_rate=self.learning_rate,
+        )
+
+        super().__init__(
+            model=model,
+            in_dim=in_dim,
+            out_dim=out_dim,
+            hidden_dims=hidden_dims,
+            derived_data=derived_data,
+            global_relations=global_rel,
+            batch_relations=batch_rel,
+            losses=losses,
+            training_phases=[init_phase, main_phase],
+            use_cuda=use_cuda,
+            verbose=verbose,
         )

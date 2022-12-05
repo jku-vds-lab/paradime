@@ -2,3 +2,5 @@ numpy>=1.21
 scipy>=1.7
 pynndescent>=0.5
 scikit-learn>=1.1
+Cerberus>=1.3
+ruamel.yaml>0.17
