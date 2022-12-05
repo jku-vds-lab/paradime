@@ -1,4 +1,4 @@
-"""Predefined paraDime routines for existing DR techniques.
+"""Predefined ParaDime routines for existing DR techniques.
 
 The :mod:`paradime.routines` module implements parametric versions of existing
 dimensionality reduction techniques using the :class:`paradime.dr.ParametricDR`

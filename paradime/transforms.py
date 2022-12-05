@@ -1,4 +1,4 @@
-"""Relation transforms for paraDime.
+"""Relation transforms for ParaDime.
 
 The :mod:`paradime.tranforms` module defines various classes used to transform
 relations between data points.

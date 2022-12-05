@@ -1,4 +1,4 @@
-"""Custom exceptions for paraDime.
+"""Custom exceptions for ParaDime.
 """
 
 

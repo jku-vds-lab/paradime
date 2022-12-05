@@ -1,7 +1,7 @@
-"""Loggin utility for paraDime.
+"""Loggin utility for ParaDime.
 
 The :mod:`paradime.utils.logging` module implements logging functionality used
-by verbose paraDime routines.
+by verbose ParaDime routines.
 """
 
 import logging
@@ -22,7 +22,7 @@ logger.addHandler(ch)
 
 
 def log(message: str) -> None:
-    """Calls the paraDime logger to print a timestamp and a message.
+    """Calls the ParaDime logger to print a timestamp and a message.
 
     Args:
         message: The message string to print.
@@ -37,14 +37,14 @@ def set_logfile(
     disable_stdout: bool = False,
     disable_other_files: bool = False,
 ) -> None:
-    """Configure the paraDime logger to write its output to a file.
+    """Configure the ParaDime logger to write its output to a file.
 
     Args:
         filename: The path to the log file.
         mode: The mode to open the file.
         disable_stdout: Whether or not to disbale logging to stdout.
         disable_other_files: Whether or not to remove other file handlers from
-            the paraDime logger.
+            the ParaDime logger.
     """
     logger = logging.getLogger(LOGGER_NAME)
 

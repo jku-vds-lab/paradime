@@ -1,4 +1,4 @@
-"""Relation data containers for paraDime.
+"""Relation data containers for ParaDime.
 
 The :mod:`paradime.relationdata` module implements container classes for
 various formats of relation data. The relation data containers are used by the

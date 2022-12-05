@@ -1,4 +1,4 @@
-"""Utility functions for paraDime.
+"""Utility functions for ParaDime.
 
 The :mod:`paradime.utils` subpackage includes various modules that implement
 utility functions for logging, plotting, and input conversion.

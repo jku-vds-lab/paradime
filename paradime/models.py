@@ -1,4 +1,4 @@
-"""Default models for paraDime.
+"""Default models for ParaDime.
 
 The :mod:`paradime.models` module implements default models for several
 applications, such as a simple

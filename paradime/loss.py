@@ -1,7 +1,7 @@
-"""Losses for paraDime routines.
+"""Losses for ParaDime routines.
 
 The :mod:`paradime.loss` module implements the specification of losses for
-paraDime routines. The supported losses are
+ParaDime routines. The supported losses are
 :class:`paradime.loss.RelationLoss`,
 :class:`paradime.loss.ClassificationLoss`,
 :class:`paradime.loss.ReconstructionLoss`, and

@@ -10,10 +10,10 @@ Overview
 
 The main steps of a paraDime routine are the following:
 
-#. For a given :ref:`dataset`, compute :ref:`relations` between data items.
+#. For a given set of :ref:`training-data`, compute :ref:`relations` between data items.
 #. Transform these relations using :ref:`transforms`.
 #. Set up training loops organized into :ref:`training-phases`.
-#. For each training phase, sample batches from the dataset.
+#. For each training phase, sample batches from the training data.
 #. Pass the batches through a machine learning :ref:`model`.
 #. Compute batch-wise relations between the processed data items.
 #. Transform the batch-wise relations.
@@ -28,52 +28,32 @@ In the following sections, each building block is explained in more detail, alon
 Dataset
 -------
 
-In paraDime, you attach a dataset to a routine (also called 'registering' the dataset) before you start the training process. This is unlike most of scikit-learn's estimators, where you pass the data only when you call an estimator's ``fit`` or ``fit_transform``. The reason for this registration is that before training, paradDime needs to calculate relations between all the data items in a dataset, and it makes sense to be able to do this independently of the training step.
-
-The easiest way to register a dataset to a paraDime routine is during instantiation:
+In paraDime, much like in scikit-learn, you pass the training data when you call a routine's :meth:`~paradime.dr.ParametricDR.train`. Even though we only perform this call at the very end of a routine's setup, we discuss the data here in the beginning. The reason for this is that some of the building blocks we will discuss later can access different parts of the dataset, so it's important to see already now how it will be passed. Consider that ``dr`` is a :class:`~paradime.dr.ParametricDR` routine:
 
 .. code-block:: python3
 
-    dr = paradime.dr.ParametricDR(
-        ...,
-        dataset=your_data,
-        ...,
+    dr.train({
+        'main': your_data,
+        'labels': your_labels,
+    })
+
+Notice how the data is usually a dictionary of named data tensors (in this case some main data and labels). You can also pass only a single data tensor to the :meth:`~paradime.dr.ParametricDR.train` method. In that case, ParaDime internally creates a dictionary from your data. It stores the single tensor under the ``'main'`` key. ParaDime also always adds an ``'indices'`` entry that simply enumerates your data items (unless your dataset already contained custom ``'indices'``). We'll see later how those keys are used to access the different parts of the data during the different stages of the routine.
+
+Sometimes it might be preferrable to not wait until the :meth:`~paradime.dr.ParametricDR.train` call with defining your training data. In these cases you can already add the data to a routine earlier using the :meth:`~paradime.dr.ParametricDR.add_data` method. You then don't necessarily have to pass an argument to the :meth:`~paradime.dr.ParametricDR.train` call. Again you can pass either a single tensor-like object or a dict of tensors-like objects.
+
+ParaDime alos defines its own :class:`~paradime.dr.Dataset` class that wraps around PyTorch's :class:`~torch.utils.data.Dataset`, but most of the time you don't need to create the :class:`~paradime.dr.Dataset` instance yourself. The two methods for registrtion above take care of it. After adding data or running the training, your routine will have a :class:`~paradime.dr.Dataset` instance as its ``dataset`` member.
+
+In some cases, such as for initialization purposes, you might find it necessary to define a so-called derived data. This is data that is computed from other parts of the data or from computed relations. :class:`~paradime.dr.DerivedData` is defined as follows:
+
+.. code-block:: python3
+
+    derived = paradime.dr.DerivedData(
+        func=...,
+        type_key_tuples=[("data", "main"), ("rels", "foo")]
     )
 
-In simple cases, ``your_data`` is just a PyTorch tensor or Numpy array. If your dataset contains any other attributes, such as labels for supervised learning, pass the data as a dictionary:
+Here, ``func`` is the function that tells ParaDime how to compute the data, and the ``type_key_tuples`` is a list of tuples that specifies which arguments will later be passed to that function internally. The first element of each tuple is either ``"data"`` or ``"rels"``, and the second element is the key to access the part (e.g., the ``"labels"`` defined above).
 
-.. code-block:: python3
-
-    dr = paradime.dr.ParametricDR(
-        ...,
-        dataset={
-            'data': your_data,
-            'labels': your_labels,
-        },
-        ...,
-    )
-
-In fact, under the hood paraDime always creates a dictionary from your data, even when you only pass a single tensor. It stores this tensor under the ``'data'`` key. It also adds an ``'indices'`` entry that simply enumerates your data items (unless your dataset already contained custom ``'indices'``). We'll see later how those keys are used to access the different parts of the data during the different stages of the routine.
-
-Registering the dataset during instantiation has the advantage of enabling paraDime to construct a default model by inferring the dataset's dimension. More on this in the :ref:`model` section.
-
-You can also register the dataset at a later point using the :meth:`~paradime.dr.ParametricDR.register_dataset` method:
-
-.. code-block:: python3
-
-    dr.register_dataset(your_data)
-
-Again you can pass either a single tensor-like object or a dict of tensors-like objects.
-
-paraDime alos defines its own :class:`~paradime.dr.Dataset` class that wraps around PyTorch's :class:`~torch.utils.data.Dataset`, but most of the time you don't need to create the :class:`~paradime.dr.Dataset` instance yourself. The two methods for registrtion above take care of it.
-
-If at any point you want to extend an already registered dataset, use the :meth:`~paradime.dr.ParametricDR.add_to_dataset` method. Here you must always pass a dictionary of tensor-like objects:
-
-.. code-block:: python3
-
-    dr.add_to_dataset({'labels': your_labels})
-
-paraDime uses this method internally in the predefined routines to add additional attributes such as PCA data to an already registered dataset.
 
 .. _relations:
 
@@ -218,7 +198,7 @@ The names of the training phases are for logging purposes.
 Model
 -----
 
-Each training phase consists of a training loop in which a neural network model is applied to a batch of data. By default, paraDime tries to infer the input dimensionality of the dataset if one is registered at instantiation, and it constructs a default fully connected model (see :class:`~paradime.models.FullyConnecteedEmbeddingModel`). You can control the layers of this model using the ``in_dim``, ``out_dim``, and ``hidden_dims`` keyword parameters.
+Each training phase consists of a training loop in which a neural network model is applied to a batch of data. By default, ParaDime tries to infer the input dimensionality of the model based on any data that is already added to a routine. If no data has been added yet, you need to give ParaDime an input dimension so that it can construct a default fully connected model (see :class:`~paradime.models.FullyConnecteedEmbeddingModel`). You can control the layers of this model using the ``in_dim``, ``out_dim``, and ``hidden_dims`` keyword parameters.
 
 .. code-block:: python3
 
@@ -262,7 +242,19 @@ We plan to add mote predefined models for certain tasks to the :mod:`paradime.mo
 Losses
 ------
 
-Arguably the most important setting of each training phase is the loss to be used in the phase. You specify a loss via the training phase's ``loss`` keyword parameter. The loss defines what to do once a batch of data has been sampled from the dataset. Basically, for each batch the loss's ``forward`` method is applied with the following call signature:
+Arguably the most important setting of each training phase is the loss to be used in the phase. You specify losses in a similar way to the training data, as a dictionary of named :class:`~paradime.loss.Loss` instances. But for the losses, this is done at instantiation:
+
+.. code-block:: python3
+
+    dr = paradime.dr.ParametricDR(
+        ...,
+        losses={
+            "name": ...,
+            ...,
+        },
+    )
+
+The training phases access these losses based on their name. The names are passed to the training phases via the ``loss_keys`` argument. You can also weight losses with multiple components by passing ``loss_weights`` (a list of numbers with equal length to the list of loss keys). The loss defines what to do once a batch of data has been sampled from the dataset. Basically, for each batch the loss's ``forward`` method is applied with the following call signature:
 
 .. code-block:: python3
 

@@ -1,4 +1,4 @@
-"""Type definitions for paraDime."""
+"""Type definitions for ParaDime."""
 
 from typing import Callable, Literal, Tuple, Union
 

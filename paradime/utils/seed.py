@@ -1,7 +1,7 @@
-"""Random seeding for paraDime.
+"""Random seeding for ParaDime.
 
 The :mod:`paradime.utils.seed` subpackage implements a function to seed all
-random number generators potentially involved in a paraDime routine.
+random number generators potentially involved in a ParaDime routine.
 """
 
 import os

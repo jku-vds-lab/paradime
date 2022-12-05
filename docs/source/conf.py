@@ -15,23 +15,26 @@
 import os
 import sys
 import re
-sys.path.insert(0, os.path.abspath('../..'))
-sys.path.insert(0, os.path.abspath('sphinxext'))
+
+sys.path.insert(0, os.path.abspath("../.."))
+sys.path.insert(0, os.path.abspath("sphinxext"))
 
 from ghlink import make_linkcode_resolve
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'paradime'
-copyright = '2022, Andreas Hinterreiter'
-author = 'Andreas Hinterreiter'
+project = "paradime"
+copyright = "2022, Andreas Hinterreiter"
+author = "Andreas Hinterreiter"
+
 
 def get_version():
-    for line in open('../../paradime/_version.py').readlines():
+    for line in open("../../paradime/_version.py").readlines():
         mo = re.match(r"^__version__ = [\"']([^\"']*)[\"']", line)
         if mo:
             return mo.group(1)
+
 
 release = get_version()
 version = release
@@ -42,20 +45,20 @@ version = release
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.napoleon',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.linkcode',
-    'sphinx_autodoc_typehints',
-    'sphinx-favicon',
-    'nbsphinx',
-    'nbsphinx_link',
+    "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.linkcode",
+    "sphinx_autodoc_typehints",
+    "sphinx-favicon",
+    "nbsphinx",
+    "nbsphinx_link",
 ]
 
-nbsphinx_execute = 'never'
+nbsphinx_execute = "never"
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -68,15 +71,15 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
-html_logo = '../../assets/paraDime.svg'
+html_static_path = ["_static"]
+html_logo = "../../assets/ParaDime.svg"
 html_theme_options = {
-    'logo_only': True,    
+    "logo_only": True,
 }
 
 # Favicons (as per https://github.com/tcmetzger/sphinx-favicon)
@@ -118,7 +121,8 @@ intersphinx_mapping = {
 }
 
 # The following is used by sphinx.ext.linkcode to provide links to github
-linkcode_resolve = make_linkcode_resolve('paradime',
-    u'https://github.com/einbandi/paradime/blob/'
-    '{revision}/{package}/{path}#L{lineno}'
+linkcode_resolve = make_linkcode_resolve(
+    "paradime",
+    "https://github.com/einbandi/paradime/blob/"
+    "{revision}/{package}/{path}#L{lineno}",
 )

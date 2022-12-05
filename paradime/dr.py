@@ -1,6 +1,6 @@
-"""Main module of paraDime.
+"""Main module of ParaDime.
 
-The :mod:`paradime.dr` module implements the main functionality of paraDime.
+The :mod:`paradime.dr` module implements the main functionality of ParaDime.
 This includes the :class:`paradime.dr.ParametricDR` class, as well as
 :class:`paradime.dr.Dataset` and :class:`paradime.dr.TrainingPhase`.
 """
@@ -322,6 +322,8 @@ class TrainingPhase(utils._ReprMixin):
 
         if loss_weights is None:
             self.loss_weights = list(np.ones(len(self.loss_keys)))
+        else:
+            self.loss_weights = loss_weights
 
         self._loss: Optional[pdloss.Loss] = None
 
@@ -414,7 +416,7 @@ class ParametricDR(utils._ReprMixin):
         training_phases: A single :class:`paradime.dr.TrainingPhase` object or
             a list of :class:`paradime.dr.TrainingPhase` objects defining the
             training phases to be run. Training phases can also be added
-            after instantiation using the :meth:`add_training_pahse` class
+            after instantiation using the :meth:`add_training_phase` class
             method.
         use_cuda: Whether or not to use the GPU for training.
         verbose: Verbosity flag. This setting overrides all verbosity settings
@@ -890,7 +892,7 @@ class ParametricDR(utils._ReprMixin):
 
                 options = entry.kwargs
 
-                if "out_dim" not in options:
+                if "out_dim" not in options and entry.func in [_pca, _spectral]:
                     options["out_dim"] = 2
 
                 selector: dict[

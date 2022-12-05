@@ -1,4 +1,4 @@
-"""Parsing utilities for paraDime.
+"""Parsing utilities for ParaDime.
 
 The :mod:`paradime.utils.parsing` module implements functions to validate
 specifications, parse them, and prepare them for later use.

@@ -1,4 +1,4 @@
-"""Relation computation for paraDime.
+"""Relation computation for ParaDime.
 
 The :mod:`paradime.relations` module defines various classes used to compute
 relations between data points.
