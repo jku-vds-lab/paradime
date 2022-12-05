@@ -506,7 +506,10 @@ class ParametricDR(utils._ReprMixin):
 
         self.use_cuda = use_cuda
         if use_cuda:
-            self.model.cuda()
+            if torch.cuda.is_available():
+                self.model.cuda()
+            else:
+                raise exceptions.CUDANotAvailableError()
 
         self.trained = False
 

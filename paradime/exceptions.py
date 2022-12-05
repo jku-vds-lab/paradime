@@ -24,3 +24,7 @@ class UnsupportedConfigurationError(Exception):
 
 class SpecificationError(Exception):
     """Specification not supported."""
+
+
+class CUDANotAvailableError(Exception):
+    """CUDA not available."""

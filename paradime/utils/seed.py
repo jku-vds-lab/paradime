@@ -26,8 +26,9 @@ def seed_all(seed: int) -> torch.Generator:
         :func:`torch.manual_seed`.
     """
     os.environ["PYTHONHASHSEED"] = str(seed)
-    if version.parse(torch.version.cuda) >= version.parse("10.2"):
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    if torch.cuda.is_available():
+        if version.parse(torch.version.cuda) >= version.parse("10.2"):
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     random.seed(seed)
     np.random.seed(seed)
     gen = torch.manual_seed(seed)
