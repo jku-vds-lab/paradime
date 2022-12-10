@@ -195,6 +195,171 @@ class PDist(Relations):
         return self.relations
 
 
+class GeodesicDist(Relations):
+    """Geodesic distances between data points.
+
+    Args:
+        metric: The distance metric to be used.
+        transform: A single :class:`paradime.transforms.Transform` or list of
+            :class:`paradime.transforms.Transform` instances to be applied to
+            the relations.
+        keep_result: Specifies whether or not to keep previously
+            calculated distances, rather than computing new ones.
+        data_key: The key to access the data for which to compute relations.
+        verbose: Verbosity toggle.
+
+    Attributes:
+        relations: A :class:`paradime.relationdata.RelationData` instance
+            containing the (possibly transformed) pairwise distances.
+            Available only after calling :meth:`compute_relations`.
+    """
+
+    def __init__(
+        self,
+        metric: Optional[Union[Callable, str]] = None,
+        transform: Optional[Transform] = None,
+        keep_result=True,
+        data_key: str = "main",
+        verbose: bool = False,
+    ):
+
+        super().__init__(
+            transform=transform,
+            data_key=data_key,
+        )
+
+        self.metric = metric
+        self.keep_result = keep_result
+        self.verbose = verbose
+    
+    def compute_geodesic_distances(self, 
+        X, 
+        n_neighbors=5, 
+        radius=None,
+        path_method="auto", 
+        neighbors_algorithm="auto", 
+        n_jobs=None, 
+        metric="minkowski", 
+        p=2, 
+        metric_params=None):
+
+        import warnings
+        import numpy as np
+        from scipy.sparse import issparse
+        from scipy.sparse.csgraph import shortest_path
+        from scipy.sparse.csgraph import connected_components
+
+        from sklearn.neighbors import NearestNeighbors, kneighbors_graph
+        from sklearn.neighbors import radius_neighbors_graph
+        from sklearn.utils.graph import _fix_connected_components
+
+        # first step: find the nearest neighbours
+        nbrs_ = NearestNeighbors(
+            n_neighbors=n_neighbors,
+            radius=radius,
+            algorithm=neighbors_algorithm,
+            metric=metric,
+            p=p,
+            metric_params=metric_params,
+            n_jobs=n_jobs,
+        )
+        nbrs_.fit(X)
+
+        # two options: 
+        # option 1: choose the number of neighbours
+        if n_neighbors is not None:
+            nbg = kneighbors_graph(
+                nbrs_,
+                n_neighbors,
+                metric=metric,
+                p=p,
+                metric_params=metric_params,
+                mode="distance",
+                n_jobs=n_jobs,
+            )
+        
+        # option 2: choose a radius
+        else:
+            nbg = radius_neighbors_graph(
+                nbrs_,
+                radius=radius,
+                metric=metric,
+                p=p,
+                metric_params=metric_params,
+                mode="distance",
+                n_jobs=n_jobs,
+            )
+
+        # Compute the number of connected components, and connect the different
+        # components to be able to compute a shortest path between all pairs
+        # of samples in the graph.
+        n_connected_components, labels = connected_components(nbg)
+        if n_connected_components > 1:
+            if metric == "precomputed" and issparse(X):
+                raise RuntimeError(
+                    "The number of connected components of the neighbors graph"
+                    f" is {n_connected_components} > 1. The graph cannot be "
+                    "completed with metric='precomputed', and Isomap cannot be"
+                    "fitted. Increase the number of neighbors to avoid this "
+                    "issue, or precompute the full distance matrix instead "
+                    "of passing a sparse neighbors graph."
+                )
+            warnings.warn(
+                "The number of connected components of the neighbors graph "
+                f"is {n_connected_components} > 1. Completing the graph to fit"
+                " Isomap might be slow. Increase the number of neighbors to "
+                "avoid this issue.",
+                stacklevel=2,
+            )
+
+            # use array validated by NearestNeighbors
+            nbg = _fix_connected_components(
+                X=nbrs_._fit_X,
+                graph=nbg,
+                n_connected_components=n_connected_components,
+                component_labels=labels,
+                mode="distance",
+                metric=nbrs_.effective_metric_,
+                **nbrs_.effective_metric_params_,
+            )
+        
+        # compute the distance matrix by using the shortest path
+        dist_matrix_ = shortest_path(nbg, method=path_method, directed=False)
+
+        return dist_matrix_
+
+    def compute_relations(
+        self, X: Optional[TensorLike] = None, **kwargs
+    ) -> relationdata.RelationData:
+        """Calculates the geodesic distances.#
+
+        Args:
+            X: Input data tensor with one sample per row.
+
+        Returns:
+            A :class:`paradime.relationdata.RelationData` instance containing
+            the (possibly transformed) geodesic distances.
+        """
+        
+        if X is None:
+            raise ValueError("Missing input for non-precomputed relations.")
+
+        X = utils.convert.to_numpy(X)
+
+        if self._relations is None or not self.keep_result:
+            if self.verbose:
+                utils.logging.log("Calculating pairwise distances.")
+            self.relations = self._transform(
+                relationdata.relation_factory(
+                    self.compute_geodesic_distances(X)
+                ))
+
+
+        elif self.verbose:
+            utils.logging.log("Using previously calculated distances.")
+
+        return self.relations
+
 class NeighborBasedPDist(Relations):
     """Approximate, nearest-neighbor-based pairwise distances
     between data points.
