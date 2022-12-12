@@ -542,6 +542,13 @@ class ParametricDR(utils._ReprMixin):
         file_or_spec: Union[str, dict],
         model: Optional[models.Model] = None,
     ) -> _ParametricDR:
+        """Creates a ParaDime routine from a specification file or dictionary.
+
+        Args:
+            file_or_spec: The filename of a YAML or JSON file with a ParaDime
+                specification, or a specification in dictionary form.
+            model: The PyTorch :class:`torch.nn.module` to be used as the model.
+        """
 
         spec = utils.parsing.validate_spec(file_or_spec)
 

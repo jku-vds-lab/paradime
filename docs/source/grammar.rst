@@ -28,8 +28,8 @@ A specification includes the top-level fields ``relations``, ``losses``, ``train
           - dists hd
           - dists ld
     training phases:
-        - loss :
-          components : mds
+        - loss:
+          components: mds
 
 ParaDime routines can be constructed from such specifications using the :meth:`~paradime.dr.ParametricDR.from_spec` class method:
 
