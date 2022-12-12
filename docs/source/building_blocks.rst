@@ -1,14 +1,14 @@
 .. _building-blocks:
 
-Building Blocks of a paraDime Routine
+Building Blocks of a ParaDime Routine
 =====================================
 
-paraDime generalizes the concept of parametric dimensionality reduction (DR) by introdcuing a flexible way of specifying all of the necessary *building blocks* of a DR routine. This general interface is provided by the :class:`~paradime.dr.ParametricDR` class located in paraDime's core module :mod:`paradime.dr`. In this section we will go through all the building blocks that fully define what an instance of :class:`~paradime.dr.ParametricDR` does.
+ParaDime generalizes the concept of parametric dimensionality reduction (DR) by introdcuing a flexible way of specifying all of the necessary *building blocks* of a DR routine. This general interface is provided by the :class:`~paradime.dr.ParametricDR` class located in ParaDime's core module :mod:`paradime.dr`. In this section we will go through all the building blocks that fully define what an instance of :class:`~paradime.dr.ParametricDR` does.
 
 Overview
 --------
 
-The main steps of a paraDime routine are the following:
+The main steps of a ParaDime routine are the following:
 
 #. For a given set of :ref:`training-data`, compute :ref:`relations` between data items.
 #. Transform these relations using :ref:`transforms`.
@@ -28,7 +28,7 @@ In the following sections, each building block is explained in more detail, alon
 Dataset
 -------
 
-In paraDime, much like in scikit-learn, you pass the training data when you call a routine's :meth:`~paradime.dr.ParametricDR.train`. Even though we only perform this call at the very end of a routine's setup, we discuss the data here in the beginning. The reason for this is that some of the building blocks we will discuss later can access different parts of the dataset, so it's important to see already now how it will be passed. Consider that ``dr`` is a :class:`~paradime.dr.ParametricDR` routine:
+In ParaDime, much like in scikit-learn, you pass the training data when you call a routine's :meth:`~paradime.dr.ParametricDR.train`. Even though we only perform this call at the very end of a routine's setup, we discuss the data here in the beginning. The reason for this is that some of the building blocks we will discuss later can access different parts of the dataset, so it's important to see already now how it will be passed. Consider that ``dr`` is a :class:`~paradime.dr.ParametricDR` routine:
 
 .. code-block:: python3
 
@@ -60,7 +60,7 @@ Here, ``func`` is the function that tells ParaDime how to compute the data, and 
 Relations
 ---------
 
-paraDime distinguishes between two types of relations: **global** and **batch-wise** relations. **Global** relations are calculated for the whole dataset once before the actual training. **Batch-wise** relations are calculated for the processed batches of items during training. For both cases, you define the relations used in a routine by providing instances of any of the :class:`~paradime.relations.Relations` subclasses defined in the :mod:`paradime.relations` module.
+ParaDime distinguishes between two types of relations: **global** and **batch-wise** relations. **Global** relations are calculated for the whole dataset once before the actual training. **Batch-wise** relations are calculated for the processed batches of items during training. For both cases, you define the relations used in a routine by providing instances of any of the :class:`~paradime.relations.Relations` subclasses defined in the :mod:`paradime.relations` module.
 
 Think of :class:`~paradime.relations.Relations` as recipes that are defined at instantiation of a :class:`~paradime.dr.ParametricDR`, but only invoked later in the routine. You pass the relations with the ``global_relations`` and ``batch_relations`` keyword parameters:
 
@@ -73,7 +73,7 @@ Think of :class:`~paradime.relations.Relations` as recipes that are defined at i
         ...,
     )
 
-In this example, paraDime would calculate the full pairwise distances between data items for the whole dataset before training, and it would use a differentiable implementation of pairwise distances to calculate relations between data items for each batch. See the API reference for :mod:`paradime.relations` for a full list of relations.
+In this example, ParaDime would calculate the full pairwise distances between data items for the whole dataset before training, and it would use a differentiable implementation of pairwise distances to calculate relations between data items for each batch. See the API reference for :mod:`paradime.relations` for a full list of relations.
 
 In the example above, we only passed one relation object for each of the two types of relations. You may want to construct multiple different relations to combine them later or use them in different training phases. To do this, simply pass a dictionary of relations:
 
@@ -90,7 +90,7 @@ In the example above, we only passed one relation object for each of the two typ
         ...,
     )
 
-Naming the relations with the keys is necessary to access them properly later on (similar to the :ref:`dataset` attributes mentioned above). Again, paraDime internally constructs the dictionary for you if you only pass a single relation, for which uses the default key ``'rel'``.
+Naming the relations with the keys is necessary to access them properly later on (similar to the :ref:`dataset` attributes mentioned above). Again, ParaDime internally constructs the dictionary for you if you only pass a single relation, for which uses the default key ``'rel'``.
 
 You can compute all the global relations for a routine by calling its :meth:`~paradime.dr.ParametricDR.compute_relations` method. This stores the relations in the routine's ``global_relation_data`` dictionary in the form of :class:`~paradime.relationdata.RelationData` objects. The :meth:`~paradime.dr.ParametricDR.compute_relations` method is also called before the training automatically in case the relations haven't been computed beforehand. By default, relations are computed for the ``'data'`` attribute of your dataset (to align with the only entry when passing a single tensor-like object as ``dataset``). If you want relations to be computed for a different attribute, you can specify that by passing the attribute name to the ``data_key`` parameter in the relations' constructor. 
 
@@ -120,7 +120,7 @@ The easiest way to customize transforms is to use the :class:`~paradime.transfor
 Training Phases
 ---------------
 
-The training of a paraDime routine is organized into training *phases*. A training phase is defined by a number of specifications that tell paraDime how to sample batches from the dataset and how to optimize the model. Most importantly, each training phases has a loss specification, which are covered in detail in the section on :ref:`losses`.
+The training of a ParaDime routine is organized into training *phases*. A training phase is defined by a number of specifications that tell ParaDime how to sample batches from the dataset and how to optimize the model. Most importantly, each training phases has a loss specification, which are covered in detail in the section on :ref:`losses`.
 
 There are two ways to define training phases: during instantiation of a :class:`~paradime.dr.ParametricDR` object using the ``training_phases`` keyword parameter; or at any point later using the :meth:`~paradime.dr.ParametricDR.add_training_phase` method. In the first case, you have to supply a list of :class:`paradime.dr.TrainingPhase` objects:
 
@@ -204,7 +204,7 @@ Each training phase consists of a training loop in which a neural network model 
 
     dr = paradime.dr.ParametricDR(
         ...,
-        in_dim=100,  # or let paraDime infer this from the dataset
+        in_dim=100,  # or let ParaDime infer this from the dataset
         out_dim=3,  # default out_dim is 2
         hidden_dims=[100, 50],
         ...,
@@ -268,7 +268,7 @@ The training phases access these losses based on their name. The names are passe
 
 As you see, the loss receives the model, the already computed global relation data, the recipes for computing the batch-wise relations, the sampled batch of data, and the device on which the model lives.
 
-Usually you don't have to worry about this, because paraDime comes with four predefined types of losses that should be sufficient for most cases:
+Usually you don't have to worry about this, because ParaDime comes with four predefined types of losses that should be sufficient for most cases:
 
 * :class:`~paradime.loss.RelationsLoss`: This is probably the most important loss for DR, because it compares subsets of the global relation data to newly computed batch-wise relations of the data processed by the model. You have to pass the comparison function to be used as the ``loss_function`` parameter. You can specify which relations are used by setting the loss's ``global_relation_key`` and ``batch_relation_key`` parameters. The default value is ``'rel'`` in both cases, to align with the default keys that are used when you only pass a single :class:`~paradmie.relations.Relations` instance. This means that, unless you use multiple relations per training phases, you don't have to care about setting these keys at all, as the defaults should be sufficient. You can also customize which model method is used to process the data by setting the ``embedding_method`` parameter; by default, the model's ``embed`` method is used. When using custom models, it is often easiest to set ``embedding_method = 'forward'``.
 * :class:`~paradime.loss.ClassificationLoss`: By default, this loss applies the model's ``classify`` method to the batch of input ``'data'`` and compares the results to the dataset's ``'labels'`` using a cross-entropy loss. As the name implies, this loss is meant for classification models or supervised learning, and by itself it disregards the relations entirely. You can customize which model method, data attributes, and loss function to use through its keyword arguments.
@@ -277,9 +277,9 @@ Usually you don't have to worry about this, because paraDime comes with four pre
 
 Finally, you can combine multiple losses using a :class:`~paradime.loss.CompoundLoss`. You instantiate a compound loss with a list of losses (and an optional list of weights), and it calls and sums up the individual losses for you.
 
-All losses keep track of their accumulated output. paraDime calls each loss's :class:`~paradime.loss.Loss.checkpoint` method once at the end of each epoch to store the most recent accumulated value in the loss's ``history`` list. This allows you to inspect the evolution of all losses after the training. Compound losses also have a :meth:`~paradime.loss.CompoundLoss.detailed_history` method that outputs the history of each loss component multiplied by its weight. During training, the total loss is logged if you set the ``verbose`` flag to True.
+All losses keep track of their accumulated output. ParaDime calls each loss's :class:`~paradime.loss.Loss.checkpoint` method once at the end of each epoch to store the most recent accumulated value in the loss's ``history`` list. This allows you to inspect the evolution of all losses after the training. Compound losses also have a :meth:`~paradime.loss.CompoundLoss.detailed_history` method that outputs the history of each loss component multiplied by its weight. During training, the total loss is logged if you set the ``verbose`` flag to True.
 
 Further Information
 -------------------
 
-For all the details on the classes, methods, and parameters, see the :ref:`api`. You will also get a good idea of how to use all these buildings blocks to define a variety of paraDime routines by checking out the :ref:`examples`.
+For all the details on the classes, methods, and parameters, see the :ref:`api`. You will also get a good idea of how to use all these buildings blocks to define a variety of ParaDime routines by checking out the :ref:`examples`.
