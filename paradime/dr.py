@@ -5,13 +5,25 @@ This includes the :class:`paradime.dr.ParametricDR` class, as well as
 :class:`paradime.dr.Dataset` and :class:`paradime.dr.TrainingPhase`.
 """
 
-import copy
-from typing import Callable, Literal, Mapping, Optional, Type, TypeVar, Union
 
+import copy
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Mapping,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
+
+from cerberus import Validator
 import numpy as np
-import torch
+from ruamel.yaml import YAML
 import sklearn.decomposition
 import sklearn.manifold
+import torch
 
 from paradime import exceptions
 from paradime import models
@@ -542,15 +554,22 @@ class ParametricDR(utils._ReprMixin):
         file_or_spec: Union[str, dict],
         model: Optional[models.Model] = None,
     ) -> _ParametricDR:
-        """Creates a ParaDime routine from a specification file or dictionary.
+        """Creates a :class:`paradime.dr.ParametricDR` routine from a ParaDime
+        specification.
 
         Args:
-            file_or_spec: The filename of a YAML or JSON file with a ParaDime
-                specification, or a specification in dictionary form.
-            model: The PyTorch :class:`torch.nn.module` to be used as the model.
+            file_or_spec: The specification, either as a dictionary or as a path
+                to a YAML/JSON file.
+
+        Returns:
+            The :class:`paradime.dr.ParametricDR` routine.
+
+        Raises:
+            :class:`paradime.exceptions.SpecificationError`: If the validation
+                of the specification has failed.
         """
 
-        spec = utils.parsing.validate_spec(file_or_spec)
+        spec = validate_spec(file_or_spec)
 
         derived_data_spec = spec.get("derived data", {})
         derived_entries = _derived_entries_from_spec(derived_data_spec)
@@ -1122,19 +1141,123 @@ def _spectral(reldata: relationdata.RelationData, **kwargs):
     return spectral
 
 
+_allowed_data_funcs: dict[str, Callable] = {
+    "pca": _pca,
+    "spectral": _spectral,
+}
+
+_allowed_rels: dict[str, type[relations.Relations]] = {
+    "precomp": relations.Precomputed,
+    "pdist": relations.PDist,
+    "neighbor": relations.NeighborBasedPDist,
+    "pdistdiff": relations.DifferentiablePDist,
+    "fromto": relations.DistsFromTo,
+}
+
+_allowed_transforms: dict[str, type[transforms.RelationTransform]] = {
+    "symmetrize": transforms.Symmetrize,
+    "normalize": transforms.Normalize,
+    "normalize rows": transforms.NormalizeRows,
+    "perplexity": transforms.PerplexityBasedRescale,
+    "t-dist": transforms.StudentTTransform,
+    "connect": transforms.ConnectivityBasedRescale,
+}
+
+_allowed_losses: dict[str, type[pdloss.Loss]] = {
+    "relation": pdloss.RelationLoss,
+    "classification": pdloss.ClassificationLoss,
+    "reconstruction": pdloss.ReconstructionLoss,
+    "position": pdloss.PositionLoss,
+}
+
+_allowed_loss_funcs: dict[str, Callable] = {
+    "mse": torch.nn.MSELoss(),
+    "kl div": pdloss.kullback_leibler_div,
+    "cross entropy": torch.nn.CrossEntropyLoss(),
+    "umap cross entropy": pdloss.cross_entropy_loss,
+}
+
+
+def register_data_func(name: str, data_func: Callable) -> None:
+    """Registers a new data function to be used in ParaDime specifications.
+
+    Args:
+        name: The name of the data function.
+        data_func: The data function to be registered.
+    """
+
+    if name in _allowed_data_funcs:
+        raise KeyError(f"Key '{name}' already reserved for a data function.")
+    else:
+        _allowed_data_funcs[name] = data_func
+
+
+def register_relations(name: str, rel: type[relations.Relations]) -> None:
+    """Registers a new type of relations to be used in ParaDime specifications.
+
+    Args:
+        name: The name of the relation type.
+        rel: The :class:`paradime.relations.Relations` to be registered.
+    """
+
+    if name in _allowed_rels:
+        raise KeyError(f"Key '{name}' already reserved for a relations object.")
+    else:
+        _allowed_rels[name] = rel
+
+
+def register_transform(
+    name: str, tf: type[transforms.RelationTransform]
+) -> None:
+    """Registers a new relation transform to be used in ParaDime specifications.
+
+    Args:
+        name: The name of the transform.
+        tf: The :class:`paradime.transform.RelationTransform`to be registered.
+    """
+
+    if name in _allowed_transforms:
+        raise KeyError(f"Key '{name}' already reserved for a transformation.")
+    else:
+        _allowed_transforms[name] = tf
+
+
+def register_loss(name: str, loss: type[pdloss.Loss]) -> None:
+    """Registers a new loss type to be used in ParaDime specifications.
+
+    Args:
+        name: The name of the loss type.
+        loss: The :class:`paradime.pdloss.Loss` to be registered.
+    """
+
+    if name in _allowed_losses:
+        raise KeyError(f"Key '{name}' already reserved for a loss type.")
+    else:
+        _allowed_losses[name] = loss
+
+
+def register_loss_func(name: str, loss_func: Callable) -> None:
+    """Registers a new loss function to be used in ParaDime specifications.
+
+    Args:
+        name: The name of the loss function.
+        data_func: The loss function to be registered.
+    """
+
+    if name in _allowed_loss_funcs:
+        raise KeyError(f"Key '{name}' already reserved for a loss function.")
+    else:
+        _allowed_loss_funcs[name] = loss_func
+
+
 def _derived_entries_from_spec(
     spec: list[dict],
 ) -> dict[str, DerivedData]:
 
-    df_dict: dict[str, Callable] = {
-        "pca": _pca,
-        "spectral": _spectral,
-    }
-
     derived_entries = {}
     for entry in spec:
         derived_entries[entry["name"]] = DerivedData(
-            df_dict[entry["data func"]],
+            _allowed_data_funcs[entry["data func"]],
             entry["keys"],
             **entry.get("options", {}),
         )
@@ -1145,19 +1268,12 @@ def _transforms_from_spec(
     spec: list[dict],
 ) -> list[transforms.RelationTransform]:
 
-    tf_dict: dict[str, type[transforms.RelationTransform]] = {
-        "symmetrize": transforms.Symmetrize,
-        "normalize": transforms.Normalize,
-        "normalize rows": transforms.NormalizeRows,
-        "perplexity": transforms.PerplexityBasedRescale,
-        "t-dist": transforms.StudentTTransform,
-        "connect": transforms.ConnectivityBasedRescale,
-    }
-
     tfs: list[transforms.RelationTransform] = []
 
     for tfspec in spec:
-        tfs.append(tf_dict[tfspec["type"]](**tfspec.get("options", {})))
+        tfs.append(
+            _allowed_transforms[tfspec["type"]](**tfspec.get("options", {}))
+        )
 
     return tfs
 
@@ -1166,21 +1282,13 @@ def _relations_from_spec(
     spec: list[dict],
 ) -> tuple[dict[str, relations.Relations], dict[str, relations.Relations]]:
 
-    rel_dict: dict[str, type[relations.Relations]] = {
-        "precomp": relations.Precomputed,
-        "pdist": relations.PDist,
-        "neighbor": relations.NeighborBasedPDist,
-        "pdistdiff": relations.DifferentiablePDist,
-        "fromto": relations.DistsFromTo,
-    }
-
     global_relations: dict[str, relations.Relations] = {}
     batch_relations: dict[str, relations.Relations] = {}
 
     for entry in spec:
         data_key = entry.get("field", "main")
         options = entry.get("options", {})
-        rel_type = rel_dict[entry["type"]]
+        rel_type = _allowed_rels[entry["type"]]
         if rel_type is not relations.Precomputed:
             options["data_key"] = data_key
         tfs = _transforms_from_spec(entry["transforms"])
@@ -1198,43 +1306,29 @@ def _relations_from_spec(
 
 def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
 
-    loss_dict: dict[str, type[pdloss.Loss]] = {
-        "relation": pdloss.RelationLoss,
-        "classification": pdloss.ClassificationLoss,
-        "reconstruction": pdloss.ReconstructionLoss,
-        "position": pdloss.PositionLoss,
-    }
-
-    loss_func_dict: dict[str, Callable] = {
-        "mse": torch.nn.MSELoss(),
-        "kl div": pdloss.kullback_leibler_div,
-        "cross entropy": torch.nn.CrossEntropyLoss(),
-        "umap cross entropy": pdloss.cross_entropy_loss,
-    }
-
     losses: dict[str, pdloss.Loss] = {}
 
     for entry in spec:
-        if loss_dict[entry["type"]] == pdloss.RelationLoss:
+        if _allowed_losses[entry["type"]] == pdloss.RelationLoss:
             methods = entry["keys"].get("methods", ["embed"])
             losses[entry["name"]] = pdloss.RelationLoss(
-                loss_function=loss_func_dict[entry["func"]],
+                loss_function=_allowed_loss_funcs[entry["func"]],
                 global_relation_key=entry["keys"]["rels"][0],
                 batch_relation_key=entry["keys"]["rels"][1],
                 embedding_method=methods[0],
             )
-        elif loss_dict[entry["type"]] == pdloss.ClassificationLoss:
+        elif _allowed_losses[entry["type"]] == pdloss.ClassificationLoss:
             methods = entry["keys"].get("methods", ["classify"])
             losses[entry["name"]] = pdloss.ClassificationLoss(
-                loss_function=loss_func_dict[entry["func"]],
+                loss_function=_allowed_loss_funcs[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 label_key=entry["keys"]["data"][1],
                 classification_method=methods[0],
             )
-        elif loss_dict[entry["type"]] == pdloss.ReconstructionLoss:
+        elif _allowed_losses[entry["type"]] == pdloss.ReconstructionLoss:
             methods = entry["keys"].get("methods", ["encode", "decode"])
             losses[entry["name"]] = pdloss.ReconstructionLoss(
-                loss_function=loss_func_dict[entry["func"]],
+                loss_function=_allowed_loss_funcs[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 encoding_method=methods[0],
                 decoding_method=methods[1],
@@ -1242,7 +1336,7 @@ def _losses_from_spec(spec: list[dict]) -> dict[str, pdloss.Loss]:
         else:
             methods = entry["keys"].get("methods", ["embed"])
             losses[entry["name"]] = pdloss.PositionLoss(
-                loss_function=loss_func_dict[entry["func"]],
+                loss_function=_allowed_loss_funcs[entry["func"]],
                 data_key=entry["keys"]["data"][0],
                 position_key=entry["keys"]["data"][1],
                 embedding_method=methods[0],
@@ -1280,3 +1374,189 @@ def _training_phases_from_spec(spec: list[dict]) -> list[TrainingPhase]:
         training_phases.append(tp)
 
     return training_phases
+
+
+def _get_schema() -> dict[str, dict[str, Any]]:
+    return {
+        "derived data": {
+            "type": "list",
+            "schema": {
+                "type": "dict",
+                "schema": {
+                    "name": {"type": "string", "required": True},
+                    "data func": {
+                        "type": "string",
+                        "required": True,
+                        "allowed": list(_allowed_data_funcs.keys()),
+                    },
+                    "keys": {
+                        "type": "list",
+                        "required": True,
+                        "schema": {
+                            "type": "list",
+                            "items": [
+                                {"type": "string", "allowed": ["data", "rels"]},
+                                {"type": "string"},
+                            ],
+                        },
+                    },
+                    "options": {"type": "dict"},
+                },
+            },
+        },
+        "relations": {
+            "type": "list",
+            "schema": {
+                "type": "dict",
+                "schema": {
+                    "name": {"type": "string", "required": True},
+                    "level": {
+                        "type": "string",
+                        "allowed": ["global", "batch"],
+                        "required": True,
+                    },
+                    "type": {
+                        "type": "string",
+                        "required": True,
+                        "allowed": list(_allowed_rels.keys()),
+                    },
+                    "field": {
+                        "type": "string",
+                    },
+                    "options": {"type": "dict"},
+                    "transforms": {
+                        "type": "list",
+                        "required": False,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "type": {
+                                    "type": "string",
+                                    "required": True,
+                                    "allowed": list(_allowed_transforms.keys()),
+                                },
+                                "options": {"type": "dict"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "losses": {
+            "type": "list",
+            "schema": {
+                "type": "dict",
+                "schema": {
+                    "name": {"type": "string", "required": True},
+                    "type": {
+                        "type": "string",
+                        "required": True,
+                        "allowed": list(_allowed_losses.keys()),
+                    },
+                    "func": {
+                        "type": "string",
+                        "allowed": list(_allowed_loss_funcs.keys()),
+                    },
+                    "keys": {
+                        "type": "dict",
+                        "schema": {
+                            "data": {
+                                "type": "list",
+                                "schema": {"type": "string"},
+                            },
+                            "rels": {
+                                "type": "list",
+                                "schema": {"type": "string"},
+                            },
+                            "methods": {
+                                "type": "list",
+                                "schema": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "training phases": {
+            "type": "list",
+            "schema": {
+                "type": "dict",
+                "schema": {
+                    "epochs": {"type": "integer"},
+                    "sampling": {
+                        "type": "dict",
+                        "schema": {
+                            "type": {
+                                "type": "string",
+                                "allowed": ["item", "edge"],
+                            },
+                            "options": {"type": "dict"},
+                        },
+                    },
+                    "optimizer": {
+                        "type": "dict",
+                        "schema": {
+                            "type": {
+                                "type": "string",
+                                "required": True,
+                                "allowed": ["sgd", "adam"],
+                            },
+                            "options": {
+                                "type": "dict",
+                            },
+                        },
+                    },
+                    "loss": {
+                        "type": "dict",
+                        "required": True,
+                        "schema": {
+                            "components": {
+                                "type": "list",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            },
+                            "weights": {
+                                "type": "list",
+                                "schema": {"type": "float"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
+def validate_spec(file_or_spec: Union[str, dict]) -> dict[str, Any]:
+    """Validates a ParaDime specification.
+
+    Args:
+        file_or_spec: The specification, either as a dictionary or as a path
+            to a YAML/JSON file.
+
+    Returns:
+        The validated specification as a dictionary.
+
+    Raises:
+        :class:`paradime.exceptions.SpecificationError`: If the validation of
+            the specification failed.
+    """
+
+    yaml = YAML(typ="safe")
+
+    if isinstance(file_or_spec, dict):
+        spec = file_or_spec
+    elif isinstance(file_or_spec, str):
+        with open(file_or_spec) as f:
+            spec = yaml.load(f)
+    else:
+        raise TypeError(
+            "Expected specification dict or path to YAML/JSON file."
+        )
+
+    validator = Validator(schema=_get_schema())
+
+    if validator.validate(spec):
+        return spec
+    else:
+        raise exceptions.SpecificationError(f"{validator.errors}")
