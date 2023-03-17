@@ -7,7 +7,7 @@ ParaDime is available via PyPi through:
 
     pip install paradime
 
-ParaDime requires `Numpy <https://numpy.org/>`_, `SciPy <https://scipy.org/>`_, `scikit-learn <https://scikit-learn.org/>`_, and `PyNNDescent <https://github.com/lmcinnes/pynndescent>`_  (see |req text|_ file), all of which are installed auomatically when installing ParaDime.
+ParaDime requires `Numpy <https://numpy.org/>`_, `SciPy <https://scipy.org/>`_, `scikit-learn <https://scikit-learn.org/>`_, `PyNNDescent <https://github.com/lmcinnes/pynndescent>`_ , `cerberus <https://docs.python-cerberus.org/en/stable/index.html>`_, and `ruamel.yaml <https://yaml.readthedocs.io/en/latest/>`_ (see |req text|_ file), all of which are installed auomatically when installing ParaDime.
 
 ParaDime also requires `PyTorch <https://pytorch.org/>`_, which must be installed separately. If you want to train ParaDime routines on the GPU, make sure to install CUDA along with the correct ``cudatoolkit`` version. See the `PyTorch docs <https://pytorch.org/get-started/locally/>`_ for detailed installation info.
 

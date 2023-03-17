@@ -5,7 +5,7 @@ authors:
   given-names: "Andreas"
   orcid: "https://orcid.org/0000-0003-4101-5180"
 title: "ParaDime: A Framework for Parametric Dimensionality Reduction"
-version: 0.3.3
+version: 1.1.0
 date-released: 2022-08-30
 url: "https://github.com/einbandi/paradime"
 preferred-citation:
