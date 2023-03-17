@@ -556,6 +556,7 @@ class ParametricDR(utils._ReprMixin):
     ) -> _ParametricDR:
         """Creates a :class:`paradime.dr.ParametricDR` routine from a ParaDime
         specification.
+
         Args:
             file_or_spec: The specification, either as a dictionary or as a path
                 to a YAML/JSON file.
