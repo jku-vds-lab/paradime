@@ -10,5 +10,4 @@ Examples
     examples/umap
     examples/hybrid
     examples/supervised
-    examples/xai
-    examples/latent_interventions
+    examples/guided

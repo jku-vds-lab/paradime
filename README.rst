@@ -1,24 +1,24 @@
-paraDime: A Framework for Parametric Dimensionality Reduction
+ParaDime: A Framework for Parametric Dimensionality Reduction
 =============================================================
 
 |ReadTheDocs Badge|  |License Badge|  |PyPi Badge|  |Black Badge|
 
-paraDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as the relations between data points), so that experimentation with novel DR techniques becomes easy.
+ParaDime is a modular framework for specifying and training parametric dimensionality reduction (DR) models. These models allow you to add new data points to existing low-dimensional representations of high-dimensional data. ParaDime DR models are constructed from simple building blocks (such as the relations between data points), so that experimentation with novel DR techniques becomes easy.
 
 Installation
 ============
 
-paraDime is available via PyPi through:
+ParaDime is available via PyPi through:
 
 .. code-block:: text
 
     pip install paradime
 
-paraDime requires `Numpy <https://numpy.org/>`_, `SciPy <https://scipy.org/>`_, `scikit-learn <https://scikit-learn.org/>`_, and `PyNNDescent <https://github.com/lmcinnes/pynndescent>`_  (see |req text|_ file), all of which are installed auomatically when installing paraDime.
+ParaDime requires `Numpy <https://numpy.org/>`_, `SciPy <https://scipy.org/>`_, `scikit-learn <https://scikit-learn.org/>`_, and `PyNNDescent <https://github.com/lmcinnes/pynndescent>`_  (see |req text|_ file), all of which are installed auomatically when installing ParaDime.
 
-paraDime also requires `PyTorch <https://pytorch.org/>`_, which must be installed separately. If you want to train paraDime routines on the GPU, make sure to install CUDA along with the correct ``cudatoolkit`` version. See the `PyTorch docs <https://pytorch.org/get-started/locally/>`_ for detailed installation info.
+ParaDime also requires `PyTorch <https://pytorch.org/>`_, which must be installed separately. If you want to train ParaDime routines on the GPU, make sure to install CUDA along with the correct ``cudatoolkit`` version. See the `PyTorch docs <https://pytorch.org/get-started/locally/>`_ for detailed installation info.
 
-If you want to use paraDime's plotting utilities, `Matplotlib <https://matplotlib.org/>`_ has to be installed additionally.
+If you want to use ParaDime's plotting utilities, `Matplotlib <https://matplotlib.org/>`_ has to be installed additionally.
 
 .. |req text| replace:: ``requirements.txt``
 .. _req text: https://github.com/einbandi/paradime/blob/master/requirements.txt
@@ -26,9 +26,9 @@ If you want to use paraDime's plotting utilities, `Matplotlib <https://matplotli
 Documentation
 =============
 
-For a simple example with one of the predefined paraDime routines, see `Simple Usage <https://paradime.readthedocs.io/en/latest/simple_usage.html>`_ in the documentation.
+For a simple example with one of the predefined ParaDime routines, see `Simple Usage <https://paradime.readthedocs.io/en/latest/simple_usage.html>`_ in the documentation.
 
-More detailed information about how to set up cusom routines can be found in `Building Blocks of a paraDime Routine <https://paradime.readthedocs.io/en/latest/building_blocks.html>`_.
+More detailed information about how to set up cusom routines can be found in `Building Blocks of a ParaDime Routine <https://paradime.readthedocs.io/en/latest/building_blocks.html>`_.
 
 For additional examples of varying complexity, see `Examples <https://paradime.readthedocs.io/en/latest/examples.html>`_.
 
